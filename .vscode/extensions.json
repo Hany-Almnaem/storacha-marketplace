@@ -1,0 +1,28 @@
+{
+  "recommendations": [
+    // Essential
+    "esbenp.prettier-vscode",
+    "dbaeumer.vscode-eslint",
+
+    // TypeScript
+    "ms-vscode.vscode-typescript-next",
+
+    // Tailwind CSS
+    "bradlc.vscode-tailwindcss",
+
+    // Solidity
+    "JuanBlanco.solidity",
+    "NomicFoundation.hardhat-solidity",
+
+    // Prisma
+    "Prisma.prisma",
+
+    // Git
+    "eamodio.gitlens",
+
+    // Utilities
+    "streetsidesoftware.code-spell-checker",
+    "usernamehw.errorlens",
+    "christian-kohler.path-intellisense"
+  ]
+}

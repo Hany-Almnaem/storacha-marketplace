@@ -1,0 +1,48 @@
+# Foundry Configuration
+# https://book.getfoundry.sh/config/
+
+[profile.default]
+src = "src"
+out = "out"
+libs = ["lib"]
+test = "test"
+script = "script"
+
+# Solidity version
+solc_version = "0.8.23"
+evm_version = "paris"
+
+# Optimizer settings
+optimizer = true
+optimizer_runs = 200
+
+# Output
+extra_output = ["abi", "evm.bytecode"]
+extra_output_files = ["abi"]
+
+# Testing
+verbosity = 2
+fuzz = { runs = 256, seed = "0x1" }
+invariant = { runs = 256, depth = 15 }
+
+# Formatting (aligns with prettier-plugin-solidity)
+[fmt]
+line_length = 100
+tab_width = 4
+bracket_spacing = true
+int_types = "long"
+multiline_func_header = "attributes_first"
+quote_style = "double"
+number_underscore = "preserve"
+single_line_statement_blocks = "preserve"
+
+# Chain config
+[rpc_endpoints]
+base_sepolia = "${BASE_SEPOLIA_RPC_URL}"
+base_mainnet = "${BASE_MAINNET_RPC_URL}"
+
+# Etherscan verification
+[etherscan]
+base_sepolia = { key = "${BASESCAN_API_KEY}", url = "https://api-sepolia.basescan.org/api" }
+base_mainnet = { key = "${BASESCAN_API_KEY}", url = "https://api.basescan.org/api" }
+

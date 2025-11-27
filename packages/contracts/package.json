@@ -1,0 +1,17 @@
+{
+  "name": "@marketplace/contracts",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Smart contracts for Storacha Data Marketplace",
+  "scripts": {
+    "build": "forge build",
+    "test": "forge test -vvv",
+    "test:coverage": "forge coverage",
+    "lint": "forge fmt --check",
+    "lint:fix": "forge fmt",
+    "clean": "forge clean",
+    "deploy:sepolia": "forge script script/Deploy.s.sol --rpc-url $BASE_SEPOLIA_RPC_URL --broadcast --verify",
+    "deploy:mainnet": "forge script script/Deploy.s.sol --rpc-url $BASE_MAINNET_RPC_URL --broadcast --verify"
+  },
+  "devDependencies": {}
+}
