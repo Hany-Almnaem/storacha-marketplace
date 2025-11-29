@@ -1,25 +1,21 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.23;
 
-import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
-import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
-import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
-import "@openzeppelin/contracts/access/Ownable.sol";
+import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import { SafeERC20 } from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
+import { ReentrancyGuard } from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
+import { Ownable } from "@openzeppelin/contracts/access/Ownable.sol";
 
 /**
  * @title DataMarketplace
  * @notice Marketplace for encrypted dataset listings paid in USDC.
- * - Payments handled in an ERC20 USDC token (passed at construction).
- * - Platform fee in basis points (default 250 = 2.5%).
- * - Sellers must wait 24 hours after the last purchase before withdrawing earnings.
- * - SafeERC20 used for all token transfers. ReentrancyGuard used on state-changing functions.
  */
 contract DataMarketplace is ReentrancyGuard, Ownable {
     using SafeERC20 for IERC20;
 
     /* ========== IMMUTABLES & CONSTANTS ========== */
 
-    IERC20 public immutable usdc;               // USDC token (6 decimals in production/testnet)
+    IERC20 public immutable USDC; // USDC token (6 decimals in production/testnet)
     uint256 public constant WITHDRAWAL_DELAY = 24 hours;
     uint256 public constant BPS_DENOM = 10000;
 
@@ -39,14 +35,14 @@ contract DataMarketplace is ReentrancyGuard, Ownable {
 
     struct Listing {
         address seller;
-        string dataCID;
+        string dataCid;
         uint256 priceUsdc; // price in USDC base units (6 decimals normally)
         bool active;
         uint256 salesCount;
     }
 
     struct SellerBalance {
-        uint256 amount;           // pending seller earnings
+        uint256 amount; // pending seller earnings
         uint256 lastPurchaseTime; // timestamp of last purchase (used to enforce withdrawal delay)
     }
 
@@ -64,19 +60,13 @@ contract DataMarketplace is ReentrancyGuard, Ownable {
     /* ========== EVENTS ========== */
 
     event ListingCreated(
-        uint256 indexed listingId,
-        address indexed seller,
-        string dataCID,
-        uint256 priceUsdc
+        uint256 indexed listingId, address indexed seller, string dataCid, uint256 priceUsdc
     );
 
     event ListingDeactivated(uint256 indexed listingId, address indexed caller);
 
     event PurchaseCompleted(
-        uint256 indexed listingId,
-        address indexed buyer,
-        address indexed seller,
-        uint256 amountUsdc
+        uint256 indexed listingId, address indexed buyer, address indexed seller, uint256 amountUsdc
     );
 
     event Withdrawal(address indexed seller, uint256 amountUsdc);
@@ -92,19 +82,16 @@ contract DataMarketplace is ReentrancyGuard, Ownable {
      */
     constructor(address _usdc) Ownable(msg.sender) {
         require(_usdc != address(0), "USDC_ZERO_ADDRESS");
-        usdc = IERC20(_usdc);
+        USDC = IERC20(_usdc);
     }
 
     /* ========== LISTING MANAGEMENT ========== */
 
-    /**
-     * @notice Create a new listing for an encrypted dataset.
-     * @param _dataCID CID or identifier of encrypted data (off-chain storage).
-     * @param _priceUsdc Price in USDC base units (6 decimals for USDC).
-     * @return listingId newly created listing id
-     */
-    function createListing(string calldata _dataCID, uint256 _priceUsdc) external returns (uint256) {
-        require(bytes(_dataCID).length > 0, "EMPTY_CID");
+    function createListing(string calldata _dataCid, uint256 _priceUsdc)
+        external
+        returns (uint256)
+    {
+        require(bytes(_dataCid).length > 0, "EMPTY_CID");
         require(_priceUsdc >= 1e6, "PRICE_TOO_SMALL"); // minimum 1 USDC to avoid dust
 
         listingCount += 1;
@@ -112,20 +99,16 @@ contract DataMarketplace is ReentrancyGuard, Ownable {
 
         listings[id] = Listing({
             seller: msg.sender,
-            dataCID: _dataCID,
+            dataCid: _dataCid,
             priceUsdc: _priceUsdc,
             active: true,
             salesCount: 0
         });
 
-        emit ListingCreated(id, msg.sender, _dataCID, _priceUsdc);
+        emit ListingCreated(id, msg.sender, _dataCid, _priceUsdc);
         return id;
     }
 
-    /**
-     * @notice Deactivate an existing listing (seller or owner).
-     * @param _listingId id of listing to deactivate
-     */
     function deactivateListing(uint256 _listingId) external {
         Listing storage l = listings[_listingId];
         require(l.seller != address(0), "LISTING_NOT_FOUND");
@@ -139,10 +122,6 @@ contract DataMarketplace is ReentrancyGuard, Ownable {
 
     /* ========== PURCHASE FLOW ========== */
 
-    /**
-     * @notice Purchase access to a listing. Buyer must approve USDC for this contract.
-     * @param _listingId id of listing to purchase
-     */
     function purchaseAccess(uint256 _listingId) external nonReentrant {
         Listing storage l = listings[_listingId];
         require(l.seller != address(0), "LISTING_NOT_FOUND");
@@ -153,14 +132,11 @@ contract DataMarketplace is ReentrancyGuard, Ownable {
         uint256 price = l.priceUsdc;
         require(price > 0, "INVALID_PRICE");
 
-        // Calculate platform fee and seller amount
         uint256 fee = (price * platformFeeBps) / BPS_DENOM;
         uint256 sellerAmount = price - fee;
 
-        // Transfer full price from buyer to this contract
-        usdc.safeTransferFrom(msg.sender, address(this), price);
+        USDC.safeTransferFrom(msg.sender, address(this), price);
 
-        // Update balances
         platformBalance += fee;
         sellerBalances[l.seller].amount += sellerAmount;
         sellerBalances[l.seller].lastPurchaseTime = block.timestamp;
@@ -173,40 +149,30 @@ contract DataMarketplace is ReentrancyGuard, Ownable {
 
     /* ========== WITHDRAWALS ========== */
 
-    /**
-     * @notice Withdraw accumulated seller earnings. Enforces 24-hour delay since last purchase.
-     */
     function withdrawEarnings() external nonReentrant {
         SellerBalance storage sb = sellerBalances[msg.sender];
         uint256 amount = sb.amount;
         require(amount > 0, "NO_BALANCE");
-        require(block.timestamp >= sb.lastPurchaseTime + WITHDRAWAL_DELAY, "WITHDRAWAL_DELAY_NOT_MET");
+        require(
+            block.timestamp >= sb.lastPurchaseTime + WITHDRAWAL_DELAY, "WITHDRAWAL_DELAY_NOT_MET"
+        );
 
-        // effects
         sb.amount = 0;
 
-        // interactions
-        usdc.safeTransfer(msg.sender, amount);
+        USDC.safeTransfer(msg.sender, amount);
         emit Withdrawal(msg.sender, amount);
     }
 
     /* ========== PLATFORM ADMIN ========== */
 
-    /**
-     * @notice Withdraw platform accumulated fees to the owner.
-     */
     function withdrawPlatformFees() external onlyOwner nonReentrant {
         uint256 bal = platformBalance;
         require(bal > 0, "NO_PLATFORM_FEES");
         platformBalance = 0;
-        usdc.safeTransfer(owner(), bal);
+        USDC.safeTransfer(owner(), bal);
         emit PlatformFeesWithdrawn(msg.sender, bal);
     }
 
-    /**
-     * @notice Set platform fee (bps). Only owner. Capped by MAX_FEE_BPS.
-     * @param _newFeeBps new fee in basis points
-     */
     function setFee(uint256 _newFeeBps) external onlyOwner {
         require(_newFeeBps <= MAX_FEE_BPS, "FEE_TOO_HIGH");
         uint256 old = platformFeeBps;
@@ -221,21 +187,25 @@ contract DataMarketplace is ReentrancyGuard, Ownable {
         view
         returns (
             address seller,
-            string memory dataCID,
+            string memory dataCid,
             uint256 priceUsdc,
             bool active,
             uint256 salesCount
         )
     {
         Listing storage l = listings[_listingId];
-        return (l.seller, l.dataCID, l.priceUsdc, l.active, l.salesCount);
+        return (l.seller, l.dataCid, l.priceUsdc, l.active, l.salesCount);
     }
 
     function hasBuyerPurchased(uint256 _listingId, address _buyer) external view returns (bool) {
         return hasPurchased[_listingId][_buyer];
     }
 
-    function getSellerBalance(address _seller) external view returns (uint256 amount, uint256 lastPurchaseTime) {
+    function getSellerBalance(address _seller)
+        external
+        view
+        returns (uint256 amount, uint256 lastPurchaseTime)
+    {
         SellerBalance storage sb = sellerBalances[_seller];
         return (sb.amount, sb.lastPurchaseTime);
     }

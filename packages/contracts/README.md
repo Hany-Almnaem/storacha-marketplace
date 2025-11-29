@@ -162,7 +162,12 @@ new DataMarketplace(USDC_BASE_SEPOLIA);
 To run tests on a Base Sepolia fork:
 
 ```bash
-forge test
+forge test -vvv
+```
+
+To get the coverage:
+```bash
+forge coverage
 ```
 
 ---
