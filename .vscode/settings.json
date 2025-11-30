@@ -61,5 +61,6 @@
     "**/dist": true,
     "**/coverage": true,
     "pnpm-lock.yaml": true
-  }
+  },
+  "solidity.compileUsingRemoteVersion": "v0.8.23+commit.f704f362"
 }
