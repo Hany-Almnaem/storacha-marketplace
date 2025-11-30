@@ -127,7 +127,7 @@ ETHERSCAN_API_KEY='etherscan_api_key'
 Base Sepolia USDC:
 
 ```
-0x1c7D4B196Cb0C7B01d743Fbc6116a902379C7238
+0x036CbD53842c5426634e7929541eC2318f3dCF7e
 ```
 
 Use this in deployment scripts.
@@ -143,16 +143,14 @@ source .env
 ```
 
 ```bash
-forge script script/Deploy.s.sol \
-  --rpc-url $BASE_SEPOLIA_RPC_URL \
-  --broadcast \
-  --verify
-```
-
-The script instantiates:
-
-```solidity
-new DataMarketplace(USDC_BASE_SEPOLIA);
+forge script script/Deploy.s.sol:Deploy \
+--rpc-url $BASE_SEPOLIA_RPC_URL \
+--private-key $PRIVATE_KEY \
+--chain-id 84532 \
+--broadcast \
+--verify \
+--etherscan-api-key $ETHERSCAN_API_KEY \
+-vvvv
 ```
 
 ---
