@@ -10,6 +10,8 @@ import express, {
 } from 'express'
 import helmet from 'helmet'
 
+import { checkDatabaseHealth, disconnectDatabase } from './config/db.js'
+
 const PORT = process.env['BACKEND_PORT'] || 3001
 const CORS_ORIGINS = process.env['CORS_ORIGINS']?.split(',') || [
   'http://localhost:3000',
@@ -27,12 +29,20 @@ app.use(
 app.use(json({ limit: '10mb' }))
 app.use(urlencoded({ extended: true }))
 
-app.get('/health', (_req: Request, res: Response) => {
-  res.json({
-    status: 'ok',
+app.get('/health', async (_req: Request, res: Response) => {
+  const dbHealthy = await checkDatabaseHealth()
+
+  const status = dbHealthy ? 'ok' : 'degraded'
+  const statusCode = dbHealthy ? 200 : 503
+
+  res.status(statusCode).json({
+    status,
     timestamp: new Date().toISOString(),
     uptime: process.uptime(),
     version: process.env['npm_package_version'] || '0.1.0',
+    services: {
+      database: dbHealthy ? 'connected' : 'disconnected',
+    },
   })
 })
 
@@ -54,19 +64,32 @@ const server = app.listen(PORT, () => {
   process.stdout.write(`Health check: http://localhost:${PORT}/health\n`)
 })
 
-const shutdown = (signal: string) => {
+const shutdown = async (signal: string) => {
   process.stdout.write(`${signal} received. Shutting down...\n`)
-  server.close(() => {
-    process.stdout.write('Server closed\n')
-    process.exit(0)
+
+  // Close HTTP server first (stop accepting new connections)
+  server.close(async () => {
+    process.stdout.write('HTTP server closed\n')
+
+    try {
+      // Disconnect from database
+      await disconnectDatabase()
+      process.stdout.write('Database disconnected\n')
+      process.exit(0)
+    } catch (error) {
+      console.error('Error during shutdown:', error)
+      process.exit(1)
+    }
   })
+
+  // Force shutdown after timeout
   setTimeout(() => {
-    console.error('Forced shutdown')
+    console.error('Forced shutdown after timeout')
     process.exit(1)
   }, 10000)
 }
 
-process.on('SIGTERM', () => shutdown('SIGTERM'))
-process.on('SIGINT', () => shutdown('SIGINT'))
+process.on('SIGTERM', () => void shutdown('SIGTERM'))
+process.on('SIGINT', () => void shutdown('SIGINT'))
 
 export default app
