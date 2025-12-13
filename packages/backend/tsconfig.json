@@ -9,7 +9,6 @@
     "moduleResolution": "bundler",
     "noEmit": false,
     "verbatimModuleSyntax": false,
-    "baseUrl": ".",
     "paths": {
       "@/*": ["./src/*"]
     }

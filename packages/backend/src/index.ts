@@ -17,6 +17,7 @@ const PORT = process.env['BACKEND_PORT'] || 3001
 const CORS_ORIGINS = process.env['CORS_ORIGINS']?.split(',') || [
   'http://localhost:3000',
 ]
+const isTest = process.env['NODE_ENV'] === 'test';
 
 const app: Application = express()
 
@@ -47,18 +48,27 @@ app.get('/health', async (_req: Request, res: Response) => {
   })
 })
 
-app.post('/verify', async (req, res) => {
-  const { txHash, expectedListingId, expectedBuyer } = req.body
+app.post('/verify', async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const { txHash, expectedListingId, expectedBuyer } = req.body
 
-  const verified = await verifyPurchase(
-    txHash,
-    expectedListingId,
-    expectedBuyer
-  )
+    const verified = await verifyPurchase(
+      txHash,
+      expectedListingId,
+      expectedBuyer
+    )
 
-  res.json({ data: verified })
-})
-
+    res.json({
+      data: {
+        ...verified,
+        amountUsdc: verified.amountUsdc.toString(),
+      },
+    })
+  } catch (err) {
+    next(err)
+  }
+}
+)
 
 app.use((_req: Request, res: Response) => {
   res.status(404).json({ error: 'Not found' })
@@ -73,37 +83,37 @@ app.use((err: Error, _req: Request, res: Response, _next: NextFunction) => {
   })
 })
 
-const server = app.listen(PORT, () => {
-  process.stdout.write(`Server running on http://localhost:${PORT}\n`)
-  process.stdout.write(`Health check: http://localhost:${PORT}/health\n`)
-})
+let server: any
+
+if (!isTest) {
+  server = app.listen(PORT, () => {
+    process.stdout.write(`Server running on http://localhost:${PORT}\n`)
+    process.stdout.write(`Health check: http://localhost:${PORT}/health\n`)
+  })
+}
+
 
 const shutdown = async (signal: string) => {
   process.stdout.write(`${signal} received. Shutting down...\n`)
-
-  // Close HTTP server first (stop accepting new connections)
   server.close(async () => {
-    process.stdout.write('HTTP server closed\n')
-
     try {
-      // Disconnect from database
       await disconnectDatabase()
-      process.stdout.write('Database disconnected\n')
       process.exit(0)
-    } catch (error) {
-      console.error('Error during shutdown:', error)
+    } catch {
       process.exit(1)
     }
   })
 
-  // Force shutdown after timeout
   setTimeout(() => {
-    console.error('Forced shutdown after timeout')
     process.exit(1)
   }, 10000)
 }
 
-process.on('SIGTERM', () => void shutdown('SIGTERM'))
-process.on('SIGINT', () => void shutdown('SIGINT'))
+
+if (!isTest) {
+  process.on('SIGTERM', () => void shutdown('SIGTERM'))
+  process.on('SIGINT', () => void shutdown('SIGINT'))
+}
+
 
 export default app
