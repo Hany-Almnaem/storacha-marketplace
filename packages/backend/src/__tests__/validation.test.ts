@@ -26,7 +26,7 @@ import {
   isValidAddress,
   isValidTxHash,
   isValidBytes32,
-} from '../lib/validation.js'
+} from '../lib/validation'
 
 // ============================================================================
 // Test Data

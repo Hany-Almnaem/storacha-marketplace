@@ -9,11 +9,10 @@
     "moduleResolution": "bundler",
     "noEmit": false,
     "verbatimModuleSyntax": false,
-    "baseUrl": ".",
     "paths": {
       "@/*": ["./src/*"]
     }
   },
-  "include": ["src/**/*"],
+  "include": ["src/**/*", "__tests__"],
   "exclude": ["node_modules", "dist", "**/*.test.ts"]
 }

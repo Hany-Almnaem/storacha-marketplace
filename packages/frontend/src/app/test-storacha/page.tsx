@@ -102,7 +102,7 @@ export default function TestStorachaPage() {
 
       setStatus({ step: 'space_ready', spaceDID })
       addLog(`✓ Space ready: ${spaceDID}`)
-      addLog('💡 Save this DID to .env.local as STORACHA_SPACE_DID')
+      addLog('💡 Save this DID to .env as STORACHA_SPACE_DID')
 
       // Step 4: Create test file
       addLog('Step 4: Creating test file...')
