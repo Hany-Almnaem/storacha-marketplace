@@ -58,10 +58,10 @@ pnpm install
 ### 2. Set Up Environment
 
 ```bash
-cp .env.example .env.local
+cp .env.example .env
 ```
 
-Edit `.env.local` with your values.
+Edit `.env` with your values.
 
 ### 3. Start Database
 
@@ -156,7 +156,7 @@ pnpm --filter @marketplace/frontend typecheck
 
 ## Environment Variables
 
-Copy `.env.example` to `.env.local` and configure:
+Copy `.env.example` to `.env` and configure:
 
 | Variable                               | Description               |
 | -------------------------------------- | ------------------------- |
@@ -210,7 +210,7 @@ Deploy to Vercel with environment variables configured.
 
 ## Security
 
-- Never commit `.env.local` or files with secrets
+- Never commit `.env` or files with secrets
 - All encryption happens client-side
 - Backend never stores plaintext keys
 
