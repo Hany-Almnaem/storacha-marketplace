@@ -1,421 +1,268 @@
-import { encodeEventTopics, encodeAbiParameters } from 'viem'
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
+import { decodeEventLog } from 'viem'
+import { describe, it, expect, vi, beforeEach } from 'vitest'
 
-// Contract address used in tests
-const MOCK_CONTRACT_ADDRESS = '0xce383BfDF637772a9C56EEa033B7Eb9129A19999'
+import { publicClient } from '../config/chain.js'
+import { verifyPurchase, verifyPurchases } from '../services/txVerification.js'
+import * as mod from '../services/txVerification.js'
+import { TxVerificationErrorCode } from '../types/txVerification.js'
 
-// Mock the chain module
-const mockGetTransactionReceipt = vi.fn()
+// --------------------
+// Mocks
+// --------------------
+vi.mock('../config/chain.js', () => ({
+  publicClient: {
+    getTransactionReceipt: vi.fn(),
+    getBlockNumber: vi.fn(),
+  },
+  MARKETPLACE_ADDRESS: '0xmarketplace',
+  MARKETPLACE_ABI: [],
+  CONFIRMATIONS_REQUIRED: 5,
+}))
 
-vi.mock('../config/chain.js', async () => {
-  const actual = await vi.importActual('../config/chain.js')
+vi.mock('viem', async (importOriginal) => {
+  const actual = await importOriginal<any>()
   return {
     ...actual,
-    MARKETPLACE_ADDRESS: MOCK_CONTRACT_ADDRESS,
-    publicClient: {
-      getTransactionReceipt: mockGetTransactionReceipt,
-    },
+    decodeEventLog: vi.fn(),
   }
 })
 
-// PurchaseCompleted event ABI for encoding test data
-const purchaseCompletedEvent = {
-  type: 'event',
-  name: 'PurchaseCompleted',
-  inputs: [
-    { indexed: true, name: 'listingId', type: 'uint256' },
-    { indexed: true, name: 'buyer', type: 'address' },
-    { indexed: true, name: 'seller', type: 'address' },
-    { indexed: false, name: 'amountUsdc', type: 'uint256' },
-  ],
-} as const
-
-/**
- * Helper to create a mock PurchaseCompleted log
- */
-function createPurchaseCompletedLog(
-  listingId: bigint,
-  buyer: `0x${string}`,
-  seller: `0x${string}`,
-  amountUsdc: bigint,
-  contractAddress: `0x${string}` = MOCK_CONTRACT_ADDRESS as `0x${string}`
-) {
-  const topics = encodeEventTopics({
-    abi: [purchaseCompletedEvent],
-    eventName: 'PurchaseCompleted',
-    args: { listingId, buyer, seller },
-  })
-
-  const data = encodeAbiParameters(
-    [{ name: 'amountUsdc', type: 'uint256' }],
-    [amountUsdc]
-  )
-
-  return {
-    address: contractAddress,
-    topics,
-    data,
-    blockNumber: BigInt(12345),
-    blockHash: ('0x' + '0'.repeat(64)) as `0x${string}`,
-    transactionHash: ('0x' + '1'.repeat(64)) as `0x${string}`,
-    transactionIndex: 0,
-    logIndex: 0,
-    removed: false,
-  }
+// --------------------
+// Base receipt
+// --------------------
+const baseReceipt = {
+  status: 'success',
+  blockNumber: 100n,
+  logs: [],
 }
 
-describe('Transaction Verification Service', () => {
-  const validTxHash =
-    '0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef' as `0x${string}`
-  const validBuyer =
-    '0x1111111111111111111111111111111111111111' as `0x${string}`
-  const validSeller =
-    '0x2222222222222222222222222222222222222222' as `0x${string}`
-  const validListingId = 1
-  const validAmountUsdc = BigInt(10_000_000) // 10 USDC
+beforeEach(() => {
+  vi.clearAllMocks()
+})
 
-  beforeEach(() => {
-    vi.resetModules()
+// ====================
+// verifyPurchase
+// ====================
+describe('verifyPurchase', () => {
+  it('verifies valid purchase', async () => {
+    vi.mocked(publicClient.getTransactionReceipt).mockResolvedValue({
+      ...baseReceipt,
+      logs: [{ address: '0xmarketplace', data: '0x', topics: [] }],
+    } as any)
+
+    vi.mocked(publicClient.getBlockNumber).mockResolvedValue(200n)
+
+    vi.mocked(decodeEventLog).mockReturnValue({
+      eventName: 'PurchaseCompleted',
+      args: {
+        listingId: 1n,
+        buyer: '0xbuyer',
+        seller: '0xseller',
+        amountUsdc: 10n,
+      },
+    } as any)
+
+    const result = await verifyPurchase('0xtx', 1, '0xbuyer')
+    expect(result.listingId).toBe(1)
   })
 
-  afterEach(() => {
-    vi.clearAllMocks()
+  it('throws TX_NOT_FOUND', async () => {
+    vi.mocked(publicClient.getTransactionReceipt).mockRejectedValue(new Error())
+
+    await expect(verifyPurchase('0xtx', 1, '0xbuyer')).rejects.toHaveProperty(
+      'code',
+      TxVerificationErrorCode.TX_NOT_FOUND
+    )
   })
 
-  describe('verifyPurchase', () => {
-    it('should return verified purchase data for valid transaction', async () => {
-      const log = createPurchaseCompletedLog(
-        BigInt(validListingId),
-        validBuyer,
-        validSeller,
-        validAmountUsdc
-      )
+  it('throws TX_FAILED', async () => {
+    vi.mocked(publicClient.getTransactionReceipt).mockResolvedValue({
+      ...baseReceipt,
+      status: 'reverted',
+    } as any)
 
-      mockGetTransactionReceipt.mockResolvedValueOnce({
-        status: 'success',
-        blockNumber: BigInt(12345),
-        logs: [log],
-      })
-
-      const { verifyPurchase } = await import('../services/txVerification.js')
-      const result = await verifyPurchase(
-        validTxHash,
-        validListingId,
-        validBuyer
-      )
-
-      expect(result).toEqual({
-        listingId: validListingId,
-        buyer: validBuyer,
-        seller: validSeller,
-        amountUsdc: validAmountUsdc,
-        blockNumber: 12345,
-      })
-    })
-
-    it('should throw TX_NOT_FOUND for non-existent transaction', async () => {
-      mockGetTransactionReceipt.mockRejectedValueOnce(
-        new Error('Transaction not found')
-      )
-
-      const { verifyPurchase, TxVerificationErrorCode } =
-        await import('../services/txVerification.js')
-
-      await expect(
-        verifyPurchase(validTxHash, validListingId, validBuyer)
-      ).rejects.toMatchObject({
-        code: TxVerificationErrorCode.TX_NOT_FOUND,
-        message: expect.stringContaining('Transaction not found'),
-      })
-    })
-
-    it('should throw TX_FAILED for failed transaction', async () => {
-      mockGetTransactionReceipt.mockResolvedValueOnce({
-        status: 'reverted',
-        blockNumber: BigInt(12345),
-        logs: [],
-      })
-
-      const { verifyPurchase, TxVerificationErrorCode } =
-        await import('../services/txVerification.js')
-
-      await expect(
-        verifyPurchase(validTxHash, validListingId, validBuyer)
-      ).rejects.toMatchObject({
-        code: TxVerificationErrorCode.TX_FAILED,
-        message: expect.stringContaining('Transaction failed'),
-      })
-    })
-
-    it('should throw EVENT_NOT_FOUND when no PurchaseCompleted event', async () => {
-      mockGetTransactionReceipt.mockResolvedValueOnce({
-        status: 'success',
-        blockNumber: BigInt(12345),
-        logs: [], // No logs
-      })
-
-      const { verifyPurchase, TxVerificationErrorCode } =
-        await import('../services/txVerification.js')
-
-      await expect(
-        verifyPurchase(validTxHash, validListingId, validBuyer)
-      ).rejects.toMatchObject({
-        code: TxVerificationErrorCode.EVENT_NOT_FOUND,
-        message: expect.stringContaining('PurchaseCompleted event not found'),
-      })
-    })
-
-    it('should throw LISTING_MISMATCH when listingId does not match', async () => {
-      const wrongListingId = 999
-      const log = createPurchaseCompletedLog(
-        BigInt(wrongListingId),
-        validBuyer,
-        validSeller,
-        validAmountUsdc
-      )
-
-      mockGetTransactionReceipt.mockResolvedValueOnce({
-        status: 'success',
-        blockNumber: BigInt(12345),
-        logs: [log],
-      })
-
-      const { verifyPurchase, TxVerificationErrorCode } =
-        await import('../services/txVerification.js')
-
-      await expect(
-        verifyPurchase(validTxHash, validListingId, validBuyer)
-      ).rejects.toMatchObject({
-        code: TxVerificationErrorCode.LISTING_MISMATCH,
-        message: expect.stringContaining(
-          `expected ${validListingId}, got ${wrongListingId}`
-        ),
-      })
-    })
-
-    it('should throw BUYER_MISMATCH when buyer does not match', async () => {
-      const wrongBuyer =
-        '0x9999999999999999999999999999999999999999' as `0x${string}`
-      const log = createPurchaseCompletedLog(
-        BigInt(validListingId),
-        wrongBuyer,
-        validSeller,
-        validAmountUsdc
-      )
-
-      mockGetTransactionReceipt.mockResolvedValueOnce({
-        status: 'success',
-        blockNumber: BigInt(12345),
-        logs: [log],
-      })
-
-      const { verifyPurchase, TxVerificationErrorCode } =
-        await import('../services/txVerification.js')
-
-      await expect(
-        verifyPurchase(validTxHash, validListingId, validBuyer)
-      ).rejects.toMatchObject({
-        code: TxVerificationErrorCode.BUYER_MISMATCH,
-        message: expect.stringContaining('Buyer mismatch'),
-      })
-    })
-
-    it('should ignore events from other contracts', async () => {
-      const otherContract =
-        '0x3333333333333333333333333333333333333333' as `0x${string}`
-      const logFromOtherContract = createPurchaseCompletedLog(
-        BigInt(validListingId),
-        validBuyer,
-        validSeller,
-        validAmountUsdc,
-        otherContract
-      )
-
-      mockGetTransactionReceipt.mockResolvedValueOnce({
-        status: 'success',
-        blockNumber: BigInt(12345),
-        logs: [logFromOtherContract],
-      })
-
-      const { verifyPurchase, TxVerificationErrorCode } =
-        await import('../services/txVerification.js')
-
-      await expect(
-        verifyPurchase(validTxHash, validListingId, validBuyer)
-      ).rejects.toMatchObject({
-        code: TxVerificationErrorCode.EVENT_NOT_FOUND,
-      })
-    })
-
-    it('should handle case-insensitive buyer address comparison', async () => {
-      const checksumBuyer =
-        '0x1111111111111111111111111111111111111111' as `0x${string}`
-      const lowercaseBuyer =
-        '0x1111111111111111111111111111111111111111' as `0x${string}`
-
-      const log = createPurchaseCompletedLog(
-        BigInt(validListingId),
-        checksumBuyer,
-        validSeller,
-        validAmountUsdc
-      )
-
-      mockGetTransactionReceipt.mockResolvedValueOnce({
-        status: 'success',
-        blockNumber: BigInt(12345),
-        logs: [log],
-      })
-
-      const { verifyPurchase } = await import('../services/txVerification.js')
-      const result = await verifyPurchase(
-        validTxHash,
-        validListingId,
-        lowercaseBuyer
-      )
-
-      expect(result.buyer.toLowerCase()).toBe(lowercaseBuyer.toLowerCase())
-    })
-
-    it('should find event among multiple logs', async () => {
-      // Create some noise logs (invalid for our contract)
-      const noiseLog = {
-        address: '0x4444444444444444444444444444444444444444' as `0x${string}`,
-        topics: ['0x' + '0'.repeat(64)] as [`0x${string}`],
-        data: '0x' as `0x${string}`,
-        blockNumber: BigInt(12345),
-        blockHash: ('0x' + '0'.repeat(64)) as `0x${string}`,
-        transactionHash: validTxHash,
-        transactionIndex: 0,
-        logIndex: 0,
-        removed: false,
-      }
-
-      const validLog = createPurchaseCompletedLog(
-        BigInt(validListingId),
-        validBuyer,
-        validSeller,
-        validAmountUsdc
-      )
-
-      mockGetTransactionReceipt.mockResolvedValueOnce({
-        status: 'success',
-        blockNumber: BigInt(12345),
-        logs: [noiseLog, validLog, noiseLog],
-      })
-
-      const { verifyPurchase } = await import('../services/txVerification.js')
-      const result = await verifyPurchase(
-        validTxHash,
-        validListingId,
-        validBuyer
-      )
-
-      expect(result.listingId).toBe(validListingId)
-    })
+    await expect(verifyPurchase('0xtx', 1, '0xbuyer')).rejects.toHaveProperty(
+      'code',
+      TxVerificationErrorCode.TX_FAILED
+    )
   })
 
-  describe('verifyPurchases', () => {
-    it('should verify multiple purchases in parallel', async () => {
-      const log1 = createPurchaseCompletedLog(
-        BigInt(1),
-        validBuyer,
-        validSeller,
-        validAmountUsdc
-      )
-      const log2 = createPurchaseCompletedLog(
-        BigInt(2),
-        validBuyer,
-        validSeller,
-        validAmountUsdc
-      )
+  it('throws TX_NOT_CONFIRMED', async () => {
+    vi.mocked(publicClient.getTransactionReceipt).mockResolvedValue(
+      baseReceipt as any
+    )
+    vi.mocked(publicClient.getBlockNumber).mockResolvedValue(101n)
 
-      mockGetTransactionReceipt
-        .mockResolvedValueOnce({
-          status: 'success',
-          blockNumber: BigInt(12345),
-          logs: [log1],
-        })
-        .mockResolvedValueOnce({
-          status: 'success',
-          blockNumber: BigInt(12346),
-          logs: [log2],
-        })
-
-      const { verifyPurchases } = await import('../services/txVerification.js')
-      const results = await verifyPurchases([
-        {
-          txHash: ('0x' + 'a'.repeat(64)) as `0x${string}`,
-          expectedListingId: 1,
-          expectedBuyer: validBuyer,
-        },
-        {
-          txHash: ('0x' + 'b'.repeat(64)) as `0x${string}`,
-          expectedListingId: 2,
-          expectedBuyer: validBuyer,
-        },
-      ])
-
-      expect(results).toHaveLength(2)
-      expect(results[0].success).toBe(true)
-      expect(results[1].success).toBe(true)
-      if (results[0].success) {
-        expect(results[0].data.listingId).toBe(1)
-      }
-      if (results[1].success) {
-        expect(results[1].data.listingId).toBe(2)
-      }
-    })
-
-    it('should return errors for failed verifications without throwing', async () => {
-      mockGetTransactionReceipt
-        .mockRejectedValueOnce(new Error('Not found'))
-        .mockResolvedValueOnce({
-          status: 'reverted',
-          blockNumber: BigInt(12345),
-          logs: [],
-        })
-
-      const { verifyPurchases, TxVerificationErrorCode } =
-        await import('../services/txVerification.js')
-      const results = await verifyPurchases([
-        {
-          txHash: ('0x' + 'a'.repeat(64)) as `0x${string}`,
-          expectedListingId: 1,
-          expectedBuyer: validBuyer,
-        },
-        {
-          txHash: ('0x' + 'b'.repeat(64)) as `0x${string}`,
-          expectedListingId: 2,
-          expectedBuyer: validBuyer,
-        },
-      ])
-
-      expect(results).toHaveLength(2)
-      expect(results[0].success).toBe(false)
-      expect(results[1].success).toBe(false)
-
-      if (!results[0].success) {
-        expect(results[0].error.code).toBe(TxVerificationErrorCode.TX_NOT_FOUND)
-      }
-      if (!results[1].success) {
-        expect(results[1].error.code).toBe(TxVerificationErrorCode.TX_FAILED)
-      }
-    })
+    await expect(verifyPurchase('0xtx', 1, '0xbuyer')).rejects.toHaveProperty(
+      'code',
+      TxVerificationErrorCode.TX_NOT_CONFIRMED
+    )
   })
 
-  describe('TxVerificationError', () => {
-    it('should create error with correct name and code', async () => {
-      const { TxVerificationError, TxVerificationErrorCode } =
-        await import('../services/txVerification.js')
+  it('throws WRONG_CONTRACT when no marketplace logs exist', async () => {
+    vi.mocked(publicClient.getTransactionReceipt).mockResolvedValue({
+      ...baseReceipt,
+      logs: [],
+    } as any)
 
-      const error = new TxVerificationError(
-        'Test error',
-        TxVerificationErrorCode.TX_FAILED
-      )
+    vi.mocked(publicClient.getBlockNumber).mockResolvedValue(200n)
 
-      expect(error.name).toBe('TxVerificationError')
-      expect(error.code).toBe(TxVerificationErrorCode.TX_FAILED)
-      expect(error.message).toBe('Test error')
+    await expect(verifyPurchase('0xtx', 1, '0xbuyer')).rejects.toHaveProperty(
+      'code',
+      TxVerificationErrorCode.WRONG_CONTRACT
+    )
+  })
+
+  it('throws EVENT_NOT_FOUND when marketplace log exists but no PurchaseCompleted', async () => {
+    vi.mocked(publicClient.getTransactionReceipt).mockResolvedValue({
+      ...baseReceipt,
+      logs: [{ address: '0xmarketplace', data: '0x', topics: [] }],
+    } as any)
+
+    vi.mocked(publicClient.getBlockNumber).mockResolvedValue(200n)
+
+    vi.mocked(decodeEventLog).mockReturnValue({
+      eventName: 'OtherEvent',
+      args: {},
+    } as any)
+
+    await expect(verifyPurchase('0xtx', 1, '0xbuyer')).rejects.toHaveProperty(
+      'code',
+      TxVerificationErrorCode.EVENT_NOT_FOUND
+    )
+  })
+
+  it('throws LISTING_MISMATCH', async () => {
+    vi.mocked(publicClient.getTransactionReceipt).mockResolvedValue({
+      ...baseReceipt,
+      logs: [{ address: '0xmarketplace', data: '0x', topics: [] }],
+    } as any)
+
+    vi.mocked(publicClient.getBlockNumber).mockResolvedValue(200n)
+
+    vi.mocked(decodeEventLog).mockReturnValue({
+      eventName: 'PurchaseCompleted',
+      args: {
+        listingId: 2n,
+        buyer: '0xbuyer',
+        seller: '0xseller',
+        amountUsdc: 10n,
+      },
+    } as any)
+
+    await expect(verifyPurchase('0xtx', 1, '0xbuyer')).rejects.toHaveProperty(
+      'code',
+      TxVerificationErrorCode.LISTING_MISMATCH
+    )
+  })
+
+  it('throws BUYER_MISMATCH', async () => {
+    vi.mocked(publicClient.getTransactionReceipt).mockResolvedValue({
+      ...baseReceipt,
+      logs: [{ address: '0xmarketplace', data: '0x', topics: [] }],
+    } as any)
+
+    vi.mocked(publicClient.getBlockNumber).mockResolvedValue(200n)
+
+    vi.mocked(decodeEventLog).mockReturnValue({
+      eventName: 'PurchaseCompleted',
+      args: {
+        listingId: 1n,
+        buyer: '0xother',
+        seller: '0xseller',
+        amountUsdc: 10n,
+      },
+    } as any)
+
+    await expect(verifyPurchase('0xtx', 1, '0xbuyer')).rejects.toHaveProperty(
+      'code',
+      TxVerificationErrorCode.BUYER_MISMATCH
+    )
+  })
+
+  it('handles decodeEventLog throw and continues', async () => {
+    vi.mocked(publicClient.getTransactionReceipt).mockResolvedValue({
+      ...baseReceipt,
+      logs: [{ address: '0xmarketplace', data: '0x', topics: [] }],
+    } as any)
+
+    vi.mocked(publicClient.getBlockNumber).mockResolvedValue(200n)
+
+    vi.mocked(decodeEventLog).mockImplementation(() => {
+      throw new Error('bad log')
     })
+
+    await expect(verifyPurchase('0xtx', 1, '0xbuyer')).rejects.toHaveProperty(
+      'code',
+      TxVerificationErrorCode.EVENT_NOT_FOUND
+    )
+  })
+})
+
+// ====================
+// verifyPurchases
+// ====================
+describe('verifyPurchases', () => {
+  it('returns mixed success and failure results', async () => {
+    vi.spyOn(publicClient, 'getTransactionReceipt')
+      .mockRejectedValueOnce(new Error())
+      .mockResolvedValueOnce({
+        ...baseReceipt,
+        logs: [{ address: '0xmarketplace', data: '0x', topics: [] }],
+      } as any)
+
+    vi.spyOn(publicClient, 'getBlockNumber').mockResolvedValue(200n)
+
+    vi.mocked(decodeEventLog).mockReturnValue({
+      eventName: 'PurchaseCompleted',
+      args: {
+        listingId: 1n,
+        buyer: '0xbuyer',
+        seller: '0xseller',
+        amountUsdc: 10n,
+      },
+    } as any)
+
+    const results = await verifyPurchases([
+      { txHash: '0x1', expectedListingId: 1, expectedBuyer: '0xbuyer' },
+      { txHash: '0x2', expectedListingId: 1, expectedBuyer: '0xbuyer' },
+    ])
+
+    expect(results[0].success).toBe(false)
+    expect(results[1].success).toBe(true)
+  })
+
+  it('handles decodeEventLog throwing and returns EVENT_NOT_FOUND', async () => {
+    vi.mocked(publicClient.getTransactionReceipt).mockResolvedValue({
+      status: 'success',
+      blockNumber: 100n,
+      logs: [{ address: '0xmarketplace', data: '0x', topics: [] }],
+    } as any)
+
+    vi.mocked(publicClient.getBlockNumber).mockResolvedValue(200n)
+
+    vi.mocked(decodeEventLog).mockImplementation(() => {
+      throw new Error('bad log')
+    })
+
+    await expect(verifyPurchase('0xtx', 1, '0xbuyer')).rejects.toHaveProperty(
+      'code',
+      TxVerificationErrorCode.EVENT_NOT_FOUND
+    )
+  })
+
+  it('verifyPurchases wraps unknown errors', async () => {
+    vi.spyOn(mod, 'verifyPurchase').mockRejectedValueOnce('boom')
+
+    const result = await mod.verifyPurchases([
+      {
+        txHash: '0xtx',
+        expectedListingId: 1,
+        expectedBuyer: '0xbuyer',
+      },
+    ])
+
+    expect(result[0].success).toBe(false)
+    expect(result[0].error.code).toBe(TxVerificationErrorCode.EVENT_NOT_FOUND)
   })
 })

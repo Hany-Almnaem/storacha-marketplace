@@ -76,4 +76,8 @@ export async function getChainId(): Promise<number> {
   return publicClient.getChainId()
 }
 
+export const CONFIRMATIONS_REQUIRED = Number(
+  process.env['CHAIN_CONFIRMATIONS'] || 5
+)
+
 export default publicClient

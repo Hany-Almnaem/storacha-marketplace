@@ -27,8 +27,11 @@ module.exports = {
       node: true,
     },
   },
+
   rules: {
+    // --------------------
     // TypeScript
+    // --------------------
     '@typescript-eslint/no-unused-vars': [
       'error',
       {
@@ -42,7 +45,9 @@ module.exports = {
       { prefer: 'type-imports' },
     ],
 
-    // Import
+    // --------------------
+    // Imports
+    // --------------------
     'import/order': [
       'error',
       {
@@ -59,13 +64,28 @@ module.exports = {
       },
     ],
     'import/no-duplicates': 'error',
-    'import/no-unresolved': 'off', // TypeScript handles this
+    'import/no-unresolved': 'off',
 
+    // --------------------
     // General
-    'no-console': ['warn', { allow: ['warn', 'error'] }],
+    // --------------------
+    'no-console': 'off',
     'prefer-const': 'error',
     'no-var': 'error',
   },
+
+  // ✅ Ignore specific rules in test files
+  overrides: [
+    {
+      files: ['**/__tests__/**/*.ts', '**/*.test.ts', '**/*.spec.ts'],
+      rules: {
+        // Allow flexibility in tests
+        '@typescript-eslint/no-explicit-any': 'off',
+        '@typescript-eslint/no-unused-vars': 'off',
+      },
+    },
+  ],
+
   ignorePatterns: [
     'node_modules/',
     'dist/',

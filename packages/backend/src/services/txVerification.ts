@@ -4,21 +4,13 @@ import {
   publicClient,
   MARKETPLACE_ABI,
   MARKETPLACE_ADDRESS,
+  CONFIRMATIONS_REQUIRED,
 } from '../config/chain.js'
+import type { VerifiedPurchase } from '../types/txVerification.js'
+import { TxVerificationErrorCode } from '../types/txVerification.js'
 
 /**
- * Result of a verified purchase transaction
- */
-export interface VerifiedPurchase {
-  listingId: number
-  buyer: string
-  seller: string
-  amountUsdc: bigint
-  blockNumber: number
-}
-
-/**
- * Custom error for transaction verification failures
+ * Custom verification error
  */
 export class TxVerificationError extends Error {
   constructor(
@@ -30,36 +22,11 @@ export class TxVerificationError extends Error {
   }
 }
 
-export enum TxVerificationErrorCode {
-  TX_NOT_FOUND = 'TX_NOT_FOUND',
-  TX_FAILED = 'TX_FAILED',
-  EVENT_NOT_FOUND = 'EVENT_NOT_FOUND',
-  LISTING_MISMATCH = 'LISTING_MISMATCH',
-  BUYER_MISMATCH = 'BUYER_MISMATCH',
-  WRONG_CONTRACT = 'WRONG_CONTRACT',
-}
-
-/**
- * Verify a purchase transaction on-chain.
- *
- * This function MUST be called before trusting any client-submitted purchase data.
- * It fetches the transaction receipt and verifies:
- * 1. Transaction succeeded (status === 'success')
- * 2. PurchaseCompleted event was emitted by our contract
- * 3. Event args match expected listingId and buyer
- *
- * @param txHash - Transaction hash to verify
- * @param expectedListingId - Expected listing ID from client
- * @param expectedBuyer - Expected buyer address from client
- * @returns Verified purchase data from on-chain event
- * @throws TxVerificationError if verification fails
- */
 export async function verifyPurchase(
   txHash: `0x${string}`,
   expectedListingId: number,
   expectedBuyer: `0x${string}`
 ): Promise<VerifiedPurchase> {
-  // 1. Fetch transaction receipt
   let receipt
   try {
     receipt = await publicClient.getTransactionReceipt({ hash: txHash })
@@ -70,7 +37,6 @@ export async function verifyPurchase(
     )
   }
 
-  // 2. Verify transaction succeeded
   if (receipt.status !== 'success') {
     throw new TxVerificationError(
       `Transaction failed: ${txHash}`,
@@ -78,27 +44,42 @@ export async function verifyPurchase(
     )
   }
 
-  // 3. Find PurchaseCompleted event from our contract
-  const purchaseEvent = findPurchaseCompletedEvent(receipt.logs)
-
-  if (!purchaseEvent) {
+  const latestBlock = await publicClient.getBlockNumber()
+  if (latestBlock - receipt.blockNumber < BigInt(CONFIRMATIONS_REQUIRED)) {
     throw new TxVerificationError(
-      `PurchaseCompleted event not found in transaction: ${txHash}`,
+      `Transaction not confirmed: ${txHash}`,
+      TxVerificationErrorCode.TX_NOT_CONFIRMED
+    )
+  }
+
+  const hasMarketplaceLog = receipt.logs.some(
+    (l) => l.address.toLowerCase() === MARKETPLACE_ADDRESS.toLowerCase()
+  )
+
+  if (!hasMarketplaceLog) {
+    throw new TxVerificationError(
+      `Wrong contract: ${txHash}`,
+      TxVerificationErrorCode.WRONG_CONTRACT
+    )
+  }
+
+  const event = findPurchaseCompletedEvent(receipt.logs)
+  if (!event) {
+    throw new TxVerificationError(
+      `PurchaseCompleted event not found in tx ${txHash}`,
       TxVerificationErrorCode.EVENT_NOT_FOUND
     )
   }
 
-  const { listingId, buyer, seller, amountUsdc } = purchaseEvent
+  const { listingId, buyer, seller, amountUsdc } = event
 
-  // 4. Verify listingId matches
   if (Number(listingId) !== expectedListingId) {
     throw new TxVerificationError(
-      `Listing ID mismatch: expected ${expectedListingId}, got ${listingId}`,
+      `Listing mismatch: expected ${expectedListingId}, got ${listingId}`,
       TxVerificationErrorCode.LISTING_MISMATCH
     )
   }
 
-  // 5. Verify buyer matches (case-insensitive comparison)
   if (buyer.toLowerCase() !== expectedBuyer.toLowerCase()) {
     throw new TxVerificationError(
       `Buyer mismatch: expected ${expectedBuyer}, got ${buyer}`,
@@ -116,7 +97,7 @@ export async function verifyPurchase(
 }
 
 /**
- * Parse logs to find a PurchaseCompleted event from our contract
+ * Extract PurchaseCompleted event from logs
  */
 function findPurchaseCompletedEvent(logs: Log[]): {
   listingId: bigint
@@ -125,7 +106,6 @@ function findPurchaseCompletedEvent(logs: Log[]): {
   amountUsdc: bigint
 } | null {
   for (const log of logs) {
-    // Skip logs from other contracts
     if (log.address.toLowerCase() !== MARKETPLACE_ADDRESS.toLowerCase()) {
       continue
     }
@@ -144,6 +124,7 @@ function findPurchaseCompletedEvent(logs: Log[]): {
           seller: `0x${string}`
           amountUsdc: bigint
         }
+
         return {
           listingId: args.listingId,
           buyer: args.buyer,
@@ -152,7 +133,6 @@ function findPurchaseCompletedEvent(logs: Log[]): {
         }
       }
     } catch {
-      // Not a valid event from our contract, continue
       continue
     }
   }
@@ -161,8 +141,7 @@ function findPurchaseCompletedEvent(logs: Log[]): {
 }
 
 /**
- * Verify multiple purchases in parallel
- * Returns array of results, with errors for failed verifications
+ * Verify multiple purchases in parallel (Issue #4 compatibility)
  */
 export async function verifyPurchases(
   purchases: Array<{
@@ -176,28 +155,28 @@ export async function verifyPurchases(
     | { success: false; error: TxVerificationError }
   >
 > {
-  const results = await Promise.all(
-    purchases.map(async ({ txHash, expectedListingId, expectedBuyer }) => {
+  return Promise.all(
+    purchases.map(async (p) => {
       try {
         const data = await verifyPurchase(
-          txHash,
-          expectedListingId,
-          expectedBuyer
+          p.txHash,
+          p.expectedListingId,
+          p.expectedBuyer
         )
         return { success: true as const, data }
       } catch (error) {
         if (error instanceof TxVerificationError) {
           return { success: false as const, error }
         }
+
         return {
           success: false as const,
           error: new TxVerificationError(
-            `Unknown error: ${error instanceof Error ? error.message : String(error)}`,
+            `Unknown error: ${String(error)}`,
             TxVerificationErrorCode.TX_NOT_FOUND
           ),
         }
       }
     })
   )
-  return results
 }
