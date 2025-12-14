@@ -1,5 +1,13 @@
+import { decodeEventLog } from 'viem'
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import type { MockedFunction } from 'vitest'
+
+import { publicClient } from '../config/chain.js'
+import prismaDB from '../config/db.js'
+import {
+  startPurchaseListener,
+  stopPurchaseListener,
+} from '../services/eventListener.js'
 
 const txPurchaseUpsert = vi.fn()
 const txEventLogCreate = vi.fn()
@@ -44,23 +52,13 @@ vi.mock('../services/notification.js', () => ({
   notifySeller: vi.fn(),
 }))
 
-import { decodeEventLog } from 'viem'
-import prisma from '../config/db.js'
-import { publicClient } from '../config/chain.js'
-import {
-  startPurchaseListener,
-  stopPurchaseListener,
-} from '../services/eventListener.js'
+const mockWatch = publicClient.watchContractEvent as MockedFunction<
+  typeof publicClient.watchContractEvent
+>
 
-const mockWatch =
-  publicClient.watchContractEvent as MockedFunction<
-    typeof publicClient.watchContractEvent
-  >
-
-const mockGetBlockNumber =
-  publicClient.getBlockNumber as MockedFunction<
-    typeof publicClient.getBlockNumber
-  >
+const mockGetBlockNumber = publicClient.getBlockNumber as MockedFunction<
+  typeof publicClient.getBlockNumber
+>
 
 beforeEach(() => {
   vi.clearAllMocks()
@@ -76,8 +74,7 @@ async function setupListener() {
     onLogs = cb
     return vi.fn() // unwatch
   })
-
-  ;(prisma.eventLog.findFirst as any).mockResolvedValue(null)
+  ;(prismaDB.eventLog.findFirst as any).mockResolvedValue(null)
   mockGetBlockNumber.mockResolvedValue(200n)
 
   await startPurchaseListener()
@@ -90,9 +87,8 @@ describe('eventListener.ts – coverage', () => {
   it('processes valid PurchaseCompleted event', async () => {
     const onLogs = await setupListener()
 
-    ;(prisma.eventLog.findUnique as any).mockResolvedValue(null)
+    ;(prismaDB.eventLog.findUnique as any).mockResolvedValue(null)
     txListingFind.mockResolvedValue({ id: 'listing-id' })
-
     ;(decodeEventLog as any).mockReturnValue({
       eventName: 'PurchaseCompleted',
       args: {
@@ -119,15 +115,14 @@ describe('eventListener.ts – coverage', () => {
   })
   it('starts listener from last processed block', async () => {
     mockWatch.mockImplementationOnce(() => vi.fn())
-  
-    ;(prisma.eventLog.findFirst as any).mockResolvedValue({
+    ;(prismaDB.eventLog.findFirst as any).mockResolvedValue({
       blockNumber: 123,
     })
-  
+
     mockGetBlockNumber.mockResolvedValue(999n)
-  
+
     await startPurchaseListener()
-  
+
     expect(publicClient.watchContractEvent).toHaveBeenCalledWith(
       expect.objectContaining({
         fromBlock: 123n,
@@ -136,7 +131,7 @@ describe('eventListener.ts – coverage', () => {
   })
   it('skips logs with null critical fields', async () => {
     const onLogs = await setupListener()
-  
+
     await onLogs([
       {
         blockNumber: null,
@@ -144,14 +139,14 @@ describe('eventListener.ts – coverage', () => {
         logIndex: null,
       },
     ])
-  
+
     expect(txPurchaseUpsert).not.toHaveBeenCalled()
   })
   it('skips logs from unconfirmed blocks', async () => {
     const onLogs = await setupListener()
-  
+
     mockGetBlockNumber.mockResolvedValueOnce(200n)
-  
+
     await onLogs([
       {
         blockNumber: 199n, // > confirmedBlock (200 - 5 = 195)
@@ -159,8 +154,7 @@ describe('eventListener.ts – coverage', () => {
         logIndex: 0,
       },
     ])
-  
+
     expect(txPurchaseUpsert).not.toHaveBeenCalled()
-  })  
-  
+  })
 })

@@ -1,11 +1,13 @@
 import { decodeEventLog, type Log } from 'viem'
+
 import {
   publicClient,
   MARKETPLACE_ABI,
   MARKETPLACE_ADDRESS,
   CONFIRMATIONS_REQUIRED,
 } from '../config/chain.js'
-import { TxVerificationErrorCode, VerifiedPurchase } from '../types/txVerification.js'
+import type { VerifiedPurchase } from '../types/txVerification.js'
+import { TxVerificationErrorCode } from '../types/txVerification.js'
 
 /**
  * Custom verification error
@@ -97,9 +99,7 @@ export async function verifyPurchase(
 /**
  * Extract PurchaseCompleted event from logs
  */
-function findPurchaseCompletedEvent(
-  logs: Log[]
-): {
+function findPurchaseCompletedEvent(logs: Log[]): {
   listingId: bigint
   buyer: string
   seller: string

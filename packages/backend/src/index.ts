@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import cors from 'cors'
 import 'dotenv/config'
 import express, {
@@ -11,13 +12,13 @@ import express, {
 import helmet from 'helmet'
 
 import { checkDatabaseHealth, disconnectDatabase } from './config/db.js'
-import { verifyPurchase } from './services/txVerification'
+import { VerifyPurchaseSchema } from './lib/validation.js'
 import {
   startPurchaseListener,
   stopPurchaseListener,
 } from './services/eventListener.js'
-import { VerifyPurchaseSchema } from './lib/validation.js'
 import { getListenerHealth } from './services/monitoring.js'
+import { verifyPurchase } from './services/txVerification'
 
 const PORT = process.env['BACKEND_PORT'] || 3001
 const CORS_ORIGINS = process.env['CORS_ORIGINS']?.split(',') || [
@@ -56,34 +57,31 @@ app.get('/health', async (_req, res) => {
 // --------------------
 // Verify purchase
 // --------------------
-app.post(
-  '/verify',
-  async (req: Request, res: Response, next: NextFunction) => {
-    try {
-      const parsed = VerifyPurchaseSchema.safeParse(req.body)
-      if (!parsed.success) {
-        return res.status(400).json({ error: parsed.error.flatten() })
-      }
-
-      const { txHash, expectedListingId, expectedBuyer } = parsed.data
-
-      const verified = await verifyPurchase(
-        txHash as `0x${string}`,
-        expectedListingId,
-        expectedBuyer as `0x${string}`
-      )
-
-      res.json({
-        data: {
-          ...verified,
-          amountUsdc: verified.amountUsdc.toString(),
-        },
-      })
-    } catch (err) {
-      next(err)
+app.post('/verify', async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const parsed = VerifyPurchaseSchema.safeParse(req.body)
+    if (!parsed.success) {
+      return res.status(400).json({ error: parsed.error.flatten() })
     }
+
+    const { txHash, expectedListingId, expectedBuyer } = parsed.data
+
+    const verified = await verifyPurchase(
+      txHash as `0x${string}`,
+      expectedListingId,
+      expectedBuyer as `0x${string}`
+    )
+
+    res.json({
+      data: {
+        ...verified,
+        amountUsdc: verified.amountUsdc.toString(),
+      },
+    })
+  } catch (err) {
+    next(err)
   }
-)
+})
 
 // --------------------
 // 404

@@ -1,27 +1,26 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
+import { decodeEventLog, type Log } from 'viem'
+
 import {
   publicClient,
   MARKETPLACE_ABI,
   MARKETPLACE_ADDRESS,
   CONFIRMATIONS_REQUIRED,
 } from '../config/chain.js'
-import prisma from '../config/db.js'
+import prismaDB from '../config/db.js'
+
 import { notifySeller } from './notification.js'
-import { decodeEventLog, type Log } from 'viem'
 
 export let stopPurchaseListener: (() => void) | null = null
 
 export async function startPurchaseListener() {
-  const lastEvent = await prisma.eventLog.findFirst({
+  const lastEvent = await prismaDB.eventLog.findFirst({
     orderBy: { blockNumber: 'desc' },
   })
 
   const fromBlock = lastEvent
     ? BigInt(lastEvent.blockNumber)
     : await publicClient.getBlockNumber()
-
-  console.log(
-    `[listener] PurchaseCompleted listener starting from block ${fromBlock}`
-  )
 
   stopPurchaseListener = publicClient.watchContractEvent({
     address: MARKETPLACE_ADDRESS,
@@ -48,7 +47,7 @@ export async function startPurchaseListener() {
         const txHash = log.transactionHash
         const logIndex = log.logIndex
 
-        const alreadyProcessed = await prisma.eventLog.findUnique({
+        const alreadyProcessed = await prismaDB.eventLog.findUnique({
           where: {
             txHash_logIndex: { txHash, logIndex },
           },
@@ -68,20 +67,16 @@ export async function startPurchaseListener() {
 
         if (decoded.eventName !== 'PurchaseCompleted' || !decoded.args) continue
 
-        const {
-          listingId,
-          buyer,
-          seller,
-          amountUsdc,
-        } = decoded.args as unknown as {
-          listingId: bigint
-          buyer: `0x${string}`
-          seller: `0x${string}`
-          amountUsdc: bigint
-        }
+        const { listingId, buyer, seller, amountUsdc } =
+          decoded.args as unknown as {
+            listingId: bigint
+            buyer: `0x${string}`
+            seller: `0x${string}`
+            amountUsdc: bigint
+          }
 
         try {
-          const purchase = await prisma.$transaction(async (tx) => {
+          const purchase = await prismaDB.$transaction(async (tx: any) => {
             const listing = await tx.listing.findUnique({
               where: { onchainId: Number(listingId) },
             })
@@ -119,7 +114,7 @@ export async function startPurchaseListener() {
             purchaseId: purchase.id,
           })
         } catch (err) {
-          await prisma.eventLog.create({
+          await prismaDB.eventLog.create({
             data: {
               eventType: 'PurchaseCompleted',
               txHash,

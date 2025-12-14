@@ -1,9 +1,10 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { verifyPurchase, verifyPurchases } from '../services/txVerification.js'
-import { publicClient } from '../config/chain.js'
 import { decodeEventLog } from 'viem'
-import { TxVerificationErrorCode } from '../types/txVerification.js'
+import { describe, it, expect, vi, beforeEach } from 'vitest'
+
+import { publicClient } from '../config/chain.js'
+import { verifyPurchase, verifyPurchases } from '../services/txVerification.js'
 import * as mod from '../services/txVerification.js'
+import { TxVerificationErrorCode } from '../types/txVerification.js'
 
 // --------------------
 // Mocks
@@ -68,9 +69,10 @@ describe('verifyPurchase', () => {
   it('throws TX_NOT_FOUND', async () => {
     vi.mocked(publicClient.getTransactionReceipt).mockRejectedValue(new Error())
 
-    await expect(
-      verifyPurchase('0xtx', 1, '0xbuyer')
-    ).rejects.toHaveProperty('code', TxVerificationErrorCode.TX_NOT_FOUND)
+    await expect(verifyPurchase('0xtx', 1, '0xbuyer')).rejects.toHaveProperty(
+      'code',
+      TxVerificationErrorCode.TX_NOT_FOUND
+    )
   })
 
   it('throws TX_FAILED', async () => {
@@ -79,18 +81,22 @@ describe('verifyPurchase', () => {
       status: 'reverted',
     } as any)
 
-    await expect(
-      verifyPurchase('0xtx', 1, '0xbuyer')
-    ).rejects.toHaveProperty('code', TxVerificationErrorCode.TX_FAILED)
+    await expect(verifyPurchase('0xtx', 1, '0xbuyer')).rejects.toHaveProperty(
+      'code',
+      TxVerificationErrorCode.TX_FAILED
+    )
   })
 
   it('throws TX_NOT_CONFIRMED', async () => {
-    vi.mocked(publicClient.getTransactionReceipt).mockResolvedValue(baseReceipt as any)
+    vi.mocked(publicClient.getTransactionReceipt).mockResolvedValue(
+      baseReceipt as any
+    )
     vi.mocked(publicClient.getBlockNumber).mockResolvedValue(101n)
 
-    await expect(
-      verifyPurchase('0xtx', 1, '0xbuyer')
-    ).rejects.toHaveProperty('code', TxVerificationErrorCode.TX_NOT_CONFIRMED)
+    await expect(verifyPurchase('0xtx', 1, '0xbuyer')).rejects.toHaveProperty(
+      'code',
+      TxVerificationErrorCode.TX_NOT_CONFIRMED
+    )
   })
 
   it('throws WRONG_CONTRACT when no marketplace logs exist', async () => {
@@ -101,9 +107,10 @@ describe('verifyPurchase', () => {
 
     vi.mocked(publicClient.getBlockNumber).mockResolvedValue(200n)
 
-    await expect(
-      verifyPurchase('0xtx', 1, '0xbuyer')
-    ).rejects.toHaveProperty('code', TxVerificationErrorCode.WRONG_CONTRACT)
+    await expect(verifyPurchase('0xtx', 1, '0xbuyer')).rejects.toHaveProperty(
+      'code',
+      TxVerificationErrorCode.WRONG_CONTRACT
+    )
   })
 
   it('throws EVENT_NOT_FOUND when marketplace log exists but no PurchaseCompleted', async () => {
@@ -119,9 +126,10 @@ describe('verifyPurchase', () => {
       args: {},
     } as any)
 
-    await expect(
-      verifyPurchase('0xtx', 1, '0xbuyer')
-    ).rejects.toHaveProperty('code', TxVerificationErrorCode.EVENT_NOT_FOUND)
+    await expect(verifyPurchase('0xtx', 1, '0xbuyer')).rejects.toHaveProperty(
+      'code',
+      TxVerificationErrorCode.EVENT_NOT_FOUND
+    )
   })
 
   it('throws LISTING_MISMATCH', async () => {
@@ -142,9 +150,10 @@ describe('verifyPurchase', () => {
       },
     } as any)
 
-    await expect(
-      verifyPurchase('0xtx', 1, '0xbuyer')
-    ).rejects.toHaveProperty('code', TxVerificationErrorCode.LISTING_MISMATCH)
+    await expect(verifyPurchase('0xtx', 1, '0xbuyer')).rejects.toHaveProperty(
+      'code',
+      TxVerificationErrorCode.LISTING_MISMATCH
+    )
   })
 
   it('throws BUYER_MISMATCH', async () => {
@@ -165,9 +174,10 @@ describe('verifyPurchase', () => {
       },
     } as any)
 
-    await expect(
-      verifyPurchase('0xtx', 1, '0xbuyer')
-    ).rejects.toHaveProperty('code', TxVerificationErrorCode.BUYER_MISMATCH)
+    await expect(verifyPurchase('0xtx', 1, '0xbuyer')).rejects.toHaveProperty(
+      'code',
+      TxVerificationErrorCode.BUYER_MISMATCH
+    )
   })
 
   it('handles decodeEventLog throw and continues', async () => {
@@ -182,9 +192,10 @@ describe('verifyPurchase', () => {
       throw new Error('bad log')
     })
 
-    await expect(
-      verifyPurchase('0xtx', 1, '0xbuyer')
-    ).rejects.toHaveProperty('code', TxVerificationErrorCode.EVENT_NOT_FOUND)
+    await expect(verifyPurchase('0xtx', 1, '0xbuyer')).rejects.toHaveProperty(
+      'code',
+      TxVerificationErrorCode.EVENT_NOT_FOUND
+    )
   })
 })
 
@@ -227,16 +238,14 @@ describe('verifyPurchases', () => {
       blockNumber: 100n,
       logs: [{ address: '0xmarketplace', data: '0x', topics: [] }],
     } as any)
-  
+
     vi.mocked(publicClient.getBlockNumber).mockResolvedValue(200n)
-  
+
     vi.mocked(decodeEventLog).mockImplementation(() => {
       throw new Error('bad log')
     })
-  
-    await expect(
-      verifyPurchase('0xtx', 1, '0xbuyer')
-    ).rejects.toHaveProperty(
+
+    await expect(verifyPurchase('0xtx', 1, '0xbuyer')).rejects.toHaveProperty(
       'code',
       TxVerificationErrorCode.EVENT_NOT_FOUND
     )
@@ -244,7 +253,7 @@ describe('verifyPurchases', () => {
 
   it('verifyPurchases wraps unknown errors', async () => {
     vi.spyOn(mod, 'verifyPurchase').mockRejectedValueOnce('boom')
-  
+
     const result = await mod.verifyPurchases([
       {
         txHash: '0xtx',
@@ -252,12 +261,8 @@ describe('verifyPurchases', () => {
         expectedBuyer: '0xbuyer',
       },
     ])
-  
-    expect(result[0].success).toBe(false)
-    expect(result[0].error.code).toBe(
-      TxVerificationErrorCode.EVENT_NOT_FOUND
-    )
-  })
 
-  
+    expect(result[0].success).toBe(false)
+    expect(result[0].error.code).toBe(TxVerificationErrorCode.EVENT_NOT_FOUND)
+  })
 })

@@ -1,6 +1,11 @@
 import { describe, it, expect, vi, type MockedFunction } from 'vitest'
+
+import prismaDB from '../config/db'
 import { getListenerHealth } from '../services/monitoring'
 
+// --------------------
+// Mocks
+// --------------------
 vi.mock('../config/db', () => ({
   default: {
     eventLog: {
@@ -9,14 +14,13 @@ vi.mock('../config/db', () => ({
   },
 }))
 
-import prisma from '../config/db'
-
-const mockFindFirst = prisma.eventLog
-  .findFirst as MockedFunction<typeof prisma.eventLog.findFirst>
+const mockFindFirst = prismaDB.eventLog.findFirst as MockedFunction<
+  typeof prismaDB.eventLog.findFirst
+>
 
 describe('getListenerHealth', () => {
   it('returns stale=true when no events exist', async () => {
-    mockFindFirst.mockResolvedValue(null as any)
+    mockFindFirst.mockResolvedValue(null)
 
     const health = await getListenerHealth()
 

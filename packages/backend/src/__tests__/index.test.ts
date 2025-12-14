@@ -1,5 +1,5 @@
-import { describe, it, expect, vi, beforeAll } from 'vitest'
 import request from 'supertest'
+import { describe, it, expect, vi, beforeAll } from 'vitest'
 
 process.env.NODE_ENV = 'test'
 
@@ -26,8 +26,8 @@ vi.mock('../services/monitoring.js', () => ({
   }),
 }))
 
-import app from '../index'
 import { checkDatabaseHealth } from '../config/db.js'
+import app from '../index'
 import { verifyPurchase } from '../services/txVerification.js'
 
 describe('index.ts (Express API)', () => {

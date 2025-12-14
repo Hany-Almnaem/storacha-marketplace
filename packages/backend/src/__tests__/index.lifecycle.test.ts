@@ -37,8 +37,9 @@ describe('index.ts lifecycle', () => {
   })
 
   it('stops listener on SIGTERM', async () => {
-    const mod = await import('../index')
-    const { stopPurchaseListener } = await import('../services/eventListener.js')
+    const _mod = await import('../index')
+    const { stopPurchaseListener } =
+      await import('../services/eventListener.js')
 
     process.emit('SIGTERM')
 

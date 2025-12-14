@@ -1,13 +1,12 @@
-import prisma from '../config/db.js'
+import prismaDB from '../config/db.js'
 
 export async function getListenerHealth() {
-  const lastEvent = await prisma.eventLog.findFirst({
+  const lastEvent = await prismaDB.eventLog.findFirst({
     orderBy: { createdAt: 'desc' },
   })
 
   const stale =
-    !lastEvent ||
-    Date.now() - lastEvent.createdAt.getTime() > 10 * 60 * 1000
+    !lastEvent || Date.now() - lastEvent.createdAt.getTime() > 10 * 60 * 1000
 
   return {
     lastProcessedBlock: lastEvent?.blockNumber ?? null,
