@@ -418,7 +418,7 @@ describe('ListingQuerySchema', () => {
     expect(result.success).toBe(true)
     if (result.success) {
       expect(result.data.limit).toBe(20)
-      expect(result.data.offset).toBe(0)
+      expect(result.data.cursor).toBeUndefined()
     }
   })
 
@@ -427,15 +427,15 @@ describe('ListingQuerySchema', () => {
       category: 'AI/ML',
       seller: VALID_ADDRESS,
       active: 'true',
+      cursor: 'cklbqxp9c0000s0p7m0lhw1q3',
       limit: '50',
-      offset: '10',
     })
     expect(result.success).toBe(true)
     if (result.success) {
       expect(result.data.category).toBe('AI/ML')
       expect(result.data.active).toBe(true)
+      expect(result.data.cursor).toBe('cklbqxp9c0000s0p7m0lhw1q3')
       expect(result.data.limit).toBe(50)
-      expect(result.data.offset).toBe(10)
     }
   })
 
