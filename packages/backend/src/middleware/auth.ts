@@ -16,6 +16,8 @@ type ParsedAuthHeader = {
 
 type AuthResult = { ok: true; address: string } | { ok: false; error: string }
 
+export type AuthPurpose = 'listing' | 'general'
+
 function parseAuthorizationHeader(value: string): ParsedAuthHeader | null {
   const [scheme, payload] = value.trim().split(/\s+/, 2)
   if (!scheme || !payload || scheme.toLowerCase() !== SIGNATURE_SCHEME) {
@@ -52,11 +54,21 @@ function isTimestampFresh(timestamp: string): boolean {
   return now - timestampMs <= MAX_AGE_MS
 }
 
-function buildMessage(timestamp: string): string {
-  return `Create listing on Data Marketplace\nTimestamp: ${timestamp}`
+function buildMessage(
+  timestamp: string,
+  purpose: AuthPurpose = 'listing'
+): string {
+  if (purpose === 'listing') {
+    return `Create listing on Data Marketplace\nTimestamp: ${timestamp}`
+  }
+
+  return `Authenticate to Data Marketplace\nTimestamp: ${timestamp}`
 }
 
-async function authenticate(value: string): Promise<AuthResult> {
+async function authenticate(
+  value: string,
+  purpose: AuthPurpose = 'listing'
+): Promise<AuthResult> {
   const parsed = parseAuthorizationHeader(value)
   if (!parsed) {
     return { ok: false, error: 'Invalid authorization header' }
@@ -73,7 +85,7 @@ async function authenticate(value: string): Promise<AuthResult> {
 
   const isValid = await verifyMessage({
     address: parsed.address as `0x${string}`,
-    message: buildMessage(parsed.timestamp),
+    message: buildMessage(parsed.timestamp, purpose),
     signature: parsed.signature as `0x${string}`,
   })
 
@@ -126,6 +138,31 @@ export async function requireAuth(
 
   try {
     const result = await authenticate(header)
+    if (!result.ok) {
+      respondUnauthorized(res, result.error)
+      return
+    }
+
+    ;(req as AuthenticatedRequest).walletAddress = result.address
+    next()
+  } catch {
+    respondUnauthorized(res, 'Invalid signature')
+  }
+}
+
+export async function requireGeneralAuth(
+  req: Request,
+  res: Response,
+  next: NextFunction
+): Promise<void> {
+  const header = req.header('authorization')
+  if (!header) {
+    respondUnauthorized(res, 'Missing authorization header')
+    return
+  }
+
+  try {
+    const result = await authenticate(header, 'general')
     if (!result.ok) {
       respondUnauthorized(res, result.error)
       return
