@@ -13,6 +13,7 @@ import helmet from 'helmet'
 
 import { checkDatabaseHealth, disconnectDatabase } from './config/db.js'
 import { VerifyPurchaseSchema } from './lib/validation.js'
+import listingsRouter from './routes/listings.js'
 import {
   startPurchaseListener,
   stopPurchaseListener,
@@ -82,6 +83,11 @@ app.post('/verify', async (req: Request, res: Response, next: NextFunction) => {
     next(err)
   }
 })
+
+// --------------------
+// Listings API
+// --------------------
+app.use('/api/listings', listingsRouter)
 
 // --------------------
 // 404
