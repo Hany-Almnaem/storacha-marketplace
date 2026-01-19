@@ -146,6 +146,16 @@ export const BindKeySchema = z.object({
 })
 
 /**
+ * Extended schema for binding buyer public key
+ * Adds timestamp for replay protection
+ */
+export const BindKeyRequestSchema = z.object({
+  publicKey: z.string().min(1, 'Public key is required'),
+  signature: z.string().min(1, 'Signature is required'),
+  timestamp: z.number().int().positive('Timestamp is required'),
+})
+
+/**
  * Schema for delivering encrypted key
  * Used by POST /purchases/:id/key endpoint
  */
@@ -187,6 +197,11 @@ export const PaginationSchema = z.object({
   limit: z.coerce.number().int().min(1).max(100).default(20),
 })
 
+/**
+ * Schema for purchase query parameters
+ */
+export const PurchaseQuerySchema = PaginationSchema
+
 // ============================================================================
 // Type Exports (Inferred from Schemas)
 // ============================================================================
@@ -195,9 +210,11 @@ export type CreateListingInput = z.infer<typeof CreateListingSchema>
 export type UpdateListingInput = z.infer<typeof UpdateListingSchema>
 export type CreatePurchaseInput = z.infer<typeof CreatePurchaseSchema>
 export type BindKeyInput = z.infer<typeof BindKeySchema>
+export type BindKeyRequest = z.infer<typeof BindKeyRequestSchema>
 export type DeliverKeyInput = z.infer<typeof DeliverKeySchema>
 export type VerifyPurchaseInput = z.infer<typeof VerifyPurchaseSchema>
 export type ListingQuery = z.infer<typeof ListingQuerySchema>
+export type PurchaseQuery = z.infer<typeof PurchaseQuerySchema>
 export type Pagination = z.infer<typeof PaginationSchema>
 export type Category = z.infer<typeof CategorySchema>
 
