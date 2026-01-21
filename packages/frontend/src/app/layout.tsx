@@ -2,6 +2,7 @@ import type { Metadata } from 'next'
 import { JetBrains_Mono, Outfit } from 'next/font/google'
 
 import './globals.css'
+import { Web3Provider } from '@/providers/Web3Provider'
 
 const outfit = Outfit({
   subsets: ['latin'],
@@ -35,7 +36,7 @@ export default function RootLayout({
       <body
         className={`${outfit.variable} ${jetbrainsMono.variable} font-sans antialiased`}
       >
-        {children}
+        <Web3Provider>{children}</Web3Provider>
       </body>
     </html>
   )
