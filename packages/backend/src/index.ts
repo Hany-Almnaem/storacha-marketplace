@@ -14,6 +14,7 @@ import helmet from 'helmet'
 import { checkDatabaseHealth, disconnectDatabase } from './config/db.js'
 import { VerifyPurchaseSchema } from './lib/validation.js'
 import listingsRouter from './routes/listings.js'
+import purchasesRouter from './routes/purchases.js'
 import {
   startPurchaseListener,
   stopPurchaseListener,
@@ -88,6 +89,12 @@ app.post('/verify', async (req: Request, res: Response, next: NextFunction) => {
 // Listings API
 // --------------------
 app.use('/api/listings', listingsRouter)
+
+// --------------------
+// Purchases + Seller API
+// --------------------
+app.use('/api/purchases', purchasesRouter)
+app.use('/api/seller', purchasesRouter)
 
 // --------------------
 // 404
