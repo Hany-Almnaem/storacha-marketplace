@@ -7,13 +7,12 @@ import {
   lightTheme,
 } from '@rainbow-me/rainbowkit'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
+import { useTheme } from 'next-themes'
 import { WagmiProvider, http } from 'wagmi'
 import { baseSepolia } from 'wagmi/chains'
 import '@rainbow-me/rainbowkit/styles.css'
 
 const projectId = process.env['NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID'] ?? ''
-
-console.log(projectId)
 
 const config = getDefaultConfig({
   appName: 'Storacha Marketplace',
@@ -27,15 +26,14 @@ const config = getDefaultConfig({
 const queryClient = new QueryClient()
 
 export function Web3Provider({ children }: { children: React.ReactNode }) {
+  const { resolvedTheme } = useTheme()
+
   return (
     <WagmiProvider config={config}>
       <QueryClientProvider client={queryClient}>
         <RainbowKitProvider
           modalSize="compact"
-          theme={{
-            lightMode: lightTheme(),
-            darkMode: darkTheme(),
-          }}
+          theme={resolvedTheme === 'dark' ? darkTheme() : lightTheme()}
         >
           {children}
         </RainbowKitProvider>

@@ -6,9 +6,9 @@ export function ConnectWallet() {
   return (
     <div className="flex justify-end">
       <ConnectButton
-        showBalance={true}
         accountStatus="address"
         chainStatus="icon"
+        showBalance={false}
       />
     </div>
   )
