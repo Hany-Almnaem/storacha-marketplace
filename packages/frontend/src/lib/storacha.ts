@@ -35,6 +35,17 @@ export async function initializeClient(email: string): Promise<StorachaClient> {
 
   try {
     const client = await Client.create()
+
+    try {
+      const delegations = await client.capability.access.claim()
+      if (delegations) {
+        console.log('Storacha: Existing session found and verified.')
+        return client
+      }
+    } catch {
+      console.log('Storacha: No existing session, starting login flow.')
+    }
+
     await client.login(email as `${string}@${string}`)
 
     // Claim delegations to activate account capabilities

@@ -1,6 +1,7 @@
 import type { Metadata } from 'next'
 import { JetBrains_Mono, Outfit } from 'next/font/google'
 
+import { Providers } from './providers'
 import './globals.css'
 
 const outfit = Outfit({
@@ -35,7 +36,7 @@ export default function RootLayout({
       <body
         className={`${outfit.variable} ${jetbrainsMono.variable} font-sans antialiased`}
       >
-        {children}
+        <Providers>{children}</Providers>
       </body>
     </html>
   )
