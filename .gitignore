@@ -46,3 +46,4 @@ mnemonic.txt
 .secret
 
 packages/contracts/typechain-types/
+*.tsbuildinfo
