@@ -4,6 +4,7 @@ import { ThemeProvider } from 'next-themes'
 
 import { Web3Provider } from '@/providers/Web3Provider'
 
+import { Providers } from './providers'
 import './globals.css'
 
 const outfit = Outfit({
