@@ -2,35 +2,58 @@
 @tailwind components;
 @tailwind utilities;
 
+/* =========================
+   Theme Tokens
+   ========================= */
+
 :root {
   --background: 250 250 250;
   --foreground: 23 23 23;
+
   --card: 255 255 255;
   --card-foreground: 23 23 23;
+
   --primary: 14 165 233;
   --primary-foreground: 255 255 255;
+
   --secondary: 241 245 249;
   --secondary-foreground: 23 23 23;
+
   --muted: 241 245 249;
   --muted-foreground: 115 115 115;
+
   --border: 226 232 240;
   --ring: 14 165 233;
+
+  /* IMPORTANT: ring offset must match background */
+  --ring-offset: var(--background);
 }
 
 .dark {
   --background: 15 23 42;
   --foreground: 248 250 252;
+
   --card: 30 41 59;
   --card-foreground: 248 250 252;
+
   --primary: 56 189 248;
   --primary-foreground: 15 23 42;
+
   --secondary: 51 65 85;
   --secondary-foreground: 248 250 252;
+
   --muted: 51 65 85;
   --muted-foreground: 148 163 184;
+
   --border: 51 65 85;
   --ring: 56 189 248;
+
+  --ring-offset: var(--background);
 }
+
+/* =========================
+   Base Styles
+   ========================= */
 
 @layer base {
   * {
@@ -38,12 +61,13 @@
   }
 
   body {
-    @apply bg-background text-foreground;
+    @apply bg-background text-foreground antialiased;
     font-feature-settings:
-      'rlig' 1,
-      'calt' 1;
+      "rlig" 1,
+      "calt" 1;
   }
 
+  /* Scrollbars */
   ::-webkit-scrollbar {
     width: 8px;
     height: 8px;
@@ -62,6 +86,10 @@
     background-color: rgb(var(--muted-foreground) / 0.5);
   }
 }
+
+/* =========================
+   Utilities
+   ========================= */
 
 @layer utilities {
   .bg-background {
@@ -108,6 +136,10 @@
     --tw-ring-color: rgb(var(--ring));
   }
 
+  .focus\:ring-offset-background:focus {
+    --tw-ring-offset-color: rgb(var(--ring-offset));
+  }
+
   .gradient-mesh {
     background-image:
       radial-gradient(at 40% 20%, rgb(var(--primary) / 0.1) 0px, transparent 50%),
@@ -116,9 +148,17 @@
   }
 }
 
+/* =========================
+   Components
+   ========================= */
+
 @layer components {
   .btn {
-    @apply inline-flex items-center justify-center rounded-lg px-4 py-2 text-sm font-medium transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2 disabled:pointer-events-none disabled:opacity-50;
+    @apply inline-flex items-center justify-center rounded-lg px-4 py-2
+      text-sm font-medium transition-all duration-200
+      focus:outline-none focus:ring-2
+      focus:ring-offset-2
+      disabled:pointer-events-none disabled:opacity-50;
   }
 
   .btn-primary {
@@ -138,6 +178,7 @@
   }
 
   .card {
-    @apply rounded-xl border border-border bg-card p-6 shadow-sm transition-shadow hover:shadow-md;
+    @apply rounded-xl border border-border bg-card p-6
+      shadow-sm transition-shadow hover:shadow-md;
   }
 }
