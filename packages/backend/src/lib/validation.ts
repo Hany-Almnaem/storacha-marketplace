@@ -6,9 +6,11 @@ import { z } from 'zod'
 
 /**
  * CID regex for Storacha (CIDv1 with base32 encoding)
- * Format: bafy followed by 50-59 alphanumeric characters
+ * Format: baf followed by base32 characters (a-z, 2-7)
+ * Covers all CIDv1 prefixes: bafy, bafk, bafybe, etc.
+ * No upper limit on length to accommodate various content sizes
  */
-export const cidRegex = /^bafy[a-zA-Z0-9]{50,59}$/
+export const cidRegex = /^baf[a-z2-7]{50,}$/
 
 /**
  * Ethereum address regex (40 hex chars with 0x prefix)
