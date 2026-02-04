@@ -1,4 +1,3 @@
-// packages/frontend/src/app/listing/[id]/page.tsx
 import BuyButton from '@/components/BuyButton'
 
 const API_URL = process.env['NEXT_PUBLIC_API_URL'] || 'http://localhost:3001'
@@ -22,7 +21,12 @@ async function getListing(id: string): Promise<Listing> {
   }
 
   const json = await res.json()
-  return json.data
+
+  if (!json.listing) {
+    throw new Error('Invalid listing response')
+  }
+
+  return json.listing
 }
 
 export default async function ListingDetailPage({
