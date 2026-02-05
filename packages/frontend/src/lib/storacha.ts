@@ -38,10 +38,20 @@ export async function initializeClient(email: string): Promise<StorachaClient> {
 
     try {
       const delegations = await client.capability.access.claim()
-      if (delegations) {
+      const accounts =
+        typeof client.accounts === 'function' ? client.accounts() : {}
+      const hasDelegations = Array.isArray(delegations)
+        ? delegations.length > 0
+        : Boolean(delegations)
+
+      if (hasDelegations && Object.keys(accounts).length > 0) {
         console.log('Storacha: Existing session found and verified.')
         return client
       }
+
+      console.log(
+        'Storacha: Session exists but no accounts, starting login flow.'
+      )
     } catch {
       console.log('Storacha: No existing session, starting login flow.')
     }

@@ -32,6 +32,7 @@ describe('storacha utilities', () => {
           claim: vi.fn().mockResolvedValue([]),
         },
       },
+      accounts: () => ({}),
     }
 
     const { create } = await import('@storacha/client')
@@ -52,6 +53,7 @@ describe('storacha utilities', () => {
           claim: vi.fn(),
         },
       },
+      accounts: () => ({}),
     }
 
     const { create } = await import('@storacha/client')
@@ -83,6 +85,28 @@ describe('storacha utilities', () => {
     })
     expect(mockClient.setCurrentSpace).toHaveBeenCalledWith('did:key:test123')
     expect(space).toBe(mockSpace)
+  })
+
+  it('reuses existing session when accounts and delegations exist', async () => {
+    const mockClient = {
+      login: vi.fn(),
+      capability: {
+        access: {
+          claim: vi.fn().mockResolvedValue([{}]),
+        },
+      },
+      accounts: () => ({ 'did:mailto:test@example.com': { did: () => '' } }),
+    }
+
+    const { create } = await import('@storacha/client')
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    vi.mocked(create).mockResolvedValue(mockClient as any)
+
+    const client = await storacha.initializeClient('test@example.com')
+
+    expect(mockClient.login).not.toHaveBeenCalled()
+    expect(mockClient.capability.access.claim).toHaveBeenCalled()
+    expect(client).toBeDefined()
   })
 
   it('reuses existing space when DID matches', async () => {
