@@ -1,3 +1,5 @@
+import Link from 'next/link'
+
 import { ConnectWallet } from '@/components/ConnectWallet'
 import { ThemeToggle } from '@/components/ThemeToggle'
 
@@ -26,12 +28,12 @@ export default function Home() {
           </p>
 
           <div className="mt-10 flex items-center justify-center gap-4">
-            <button className="btn-primary px-8 py-3 text-base">
+            <Link href="/listings" className="btn-primary px-8 py-3 text-base">
               Browse Datasets
-            </button>
-            <button className="btn-outline px-8 py-3 text-base">
+            </Link>
+            <Link href="/sell/new" className="btn-outline px-8 py-3 text-base">
               Start Selling
-            </button>
+            </Link>
           </div>
         </div>
 
