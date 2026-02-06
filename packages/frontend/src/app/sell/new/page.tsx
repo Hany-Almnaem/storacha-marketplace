@@ -11,6 +11,7 @@ import {
 
 import { KeyBackupPrompt } from '../../../components/KeyBackupPrompt'
 import { UploadDataset } from '../../../components/UploadDataset'
+import { formatApiError, logValidationError } from '../../../lib/api-error'
 
 const MARKETPLACE_ABI = [
   {
@@ -201,7 +202,8 @@ export default function NewListingPage() {
 
           if (!response.ok) {
             const errData = await response.json()
-            throw new Error(errData.error || 'Failed to save to backend')
+            logValidationError(errData)
+            throw new Error(formatApiError(errData))
           }
 
           setStep('success')
