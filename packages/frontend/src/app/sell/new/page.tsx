@@ -11,6 +11,12 @@ import {
 
 import { KeyBackupPrompt } from '../../../components/KeyBackupPrompt'
 import { UploadDataset } from '../../../components/UploadDataset'
+import { formatApiError, logValidationError } from '../../../lib/api-error'
+import {
+  validateListingForm,
+  getCharCountStatus,
+  type ListingFormErrors,
+} from '../../../lib/form-validation'
 
 const MARKETPLACE_ABI = [
   {
@@ -99,6 +105,8 @@ export default function NewListingPage() {
   const [price, setPrice] = useState('')
   const [savingBackend, setSavingBackend] = useState(false)
   const [backendError, setBackendError] = useState<string | null>(null)
+  const [formErrors, setFormErrors] = useState<ListingFormErrors>({})
+  const [touched, setTouched] = useState<Record<string, boolean>>({})
 
   const { address } = useAccount()
   const { signMessageAsync } = useSignMessage()
@@ -112,6 +120,24 @@ export default function NewListingPage() {
   } = useWaitForTransactionReceipt({
     hash,
   })
+
+  // Validate form fields when they change
+  useEffect(() => {
+    const { errors } = validateListingForm(title, description, price)
+    setFormErrors(errors)
+  }, [title, description, price])
+
+  // Check if form is valid for submission
+  const isFormValid =
+    title.trim().length >= 3 &&
+    description.trim().length >= 10 &&
+    price.trim() !== '' &&
+    parseFloat(price) > 0
+
+  // Handle field blur to show validation errors
+  const handleBlur = (field: string) => {
+    setTouched((prev) => ({ ...prev, [field]: true }))
+  }
 
   const handleUploadComplete = (result: UploadResult) => {
     setUploadResult(result)
@@ -201,7 +227,8 @@ export default function NewListingPage() {
 
           if (!response.ok) {
             const errData = await response.json()
-            throw new Error(errData.error || 'Failed to save to backend')
+            logValidationError(errData)
+            throw new Error(formatApiError(errData))
           }
 
           setStep('success')
@@ -286,15 +313,34 @@ export default function NewListingPage() {
 
             <div className="mb-4">
               <label className="block text-sm font-medium text-gray-700 mb-1">
-                Title
+                Title <span className="text-red-500">*</span>
               </label>
               <input
                 type="text"
                 value={title}
                 onChange={(e) => setTitle(e.target.value)}
-                className="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
-                placeholder="Dataset Title"
+                onBlur={() => handleBlur('title')}
+                className={`w-full px-4 py-2 border rounded-md focus:ring-blue-500 focus:border-blue-500 ${
+                  touched['title'] && formErrors.title
+                    ? 'border-red-500 bg-red-50'
+                    : 'border-gray-300'
+                }`}
+                placeholder="Dataset Title (min 3 characters)"
               />
+              <div className="flex justify-between mt-1">
+                {touched['title'] && formErrors.title ? (
+                  <span className="text-sm text-red-600">
+                    {formErrors.title}
+                  </span>
+                ) : (
+                  <span />
+                )}
+                <span
+                  className={`text-xs ${getCharCountStatus(title.length, 3, 100).className}`}
+                >
+                  {getCharCountStatus(title.length, 3, 100).text}
+                </span>
+              </div>
             </div>
 
             <div className="mb-4">
@@ -316,19 +362,38 @@ export default function NewListingPage() {
 
             <div className="mb-4">
               <label className="block text-sm font-medium text-gray-700 mb-1">
-                Description
+                Description <span className="text-red-500">*</span>
               </label>
               <textarea
                 value={description}
                 onChange={(e) => setDescription(e.target.value)}
-                className="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500 h-32"
-                placeholder="Describe your dataset..."
+                onBlur={() => handleBlur('description')}
+                className={`w-full px-4 py-2 border rounded-md focus:ring-blue-500 focus:border-blue-500 h-32 ${
+                  touched['description'] && formErrors.description
+                    ? 'border-red-500 bg-red-50'
+                    : 'border-gray-300'
+                }`}
+                placeholder="Describe your dataset in detail (min 10 characters)..."
               />
+              <div className="flex justify-between mt-1">
+                {touched['description'] && formErrors.description ? (
+                  <span className="text-sm text-red-600">
+                    {formErrors.description}
+                  </span>
+                ) : (
+                  <span />
+                )}
+                <span
+                  className={`text-xs ${getCharCountStatus(description.length, 10, 5000).className}`}
+                >
+                  {getCharCountStatus(description.length, 10, 5000).text}
+                </span>
+              </div>
             </div>
 
             <div className="mb-6">
               <label className="block text-sm font-medium text-gray-700 mb-1">
-                Price (USDC)
+                Price (USDC) <span className="text-red-500">*</span>
               </label>
               <input
                 type="number"
@@ -336,9 +401,19 @@ export default function NewListingPage() {
                 min="0"
                 value={price}
                 onChange={(e) => setPrice(e.target.value)}
-                className="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
+                onBlur={() => handleBlur('price')}
+                className={`w-full px-4 py-2 border rounded-md focus:ring-blue-500 focus:border-blue-500 ${
+                  touched['price'] && formErrors.price
+                    ? 'border-red-500 bg-red-50'
+                    : 'border-gray-300'
+                }`}
                 placeholder="10.00"
               />
+              {touched['price'] && formErrors.price && (
+                <span className="text-sm text-red-600 mt-1 block">
+                  {formErrors.price}
+                </span>
+              )}
             </div>
 
             {backendError && (
@@ -350,20 +425,10 @@ export default function NewListingPage() {
             <button
               onClick={handleCreateListing}
               disabled={
-                !price ||
-                !title ||
-                !description ||
-                isPending ||
-                isConfirming ||
-                savingBackend
+                !isFormValid || isPending || isConfirming || savingBackend
               }
               className={`w-full py-3 px-4 rounded-md font-bold text-white transition-colors ${
-                !price ||
-                !title ||
-                !description ||
-                isPending ||
-                isConfirming ||
-                savingBackend
+                !isFormValid || isPending || isConfirming || savingBackend
                   ? 'bg-gray-400 cursor-not-allowed'
                   : 'bg-blue-600 hover:bg-blue-700'
               }`}
