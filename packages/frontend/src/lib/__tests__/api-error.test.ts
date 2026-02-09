@@ -127,10 +127,13 @@ describe('api-error utilities', () => {
       }
       logValidationError(response)
       expect(consoleSpy).toHaveBeenCalledTimes(1)
-      const loggedJson = consoleSpy.mock.calls[0][1]
-      const parsed = JSON.parse(loggedJson)
+      const callArgs = consoleSpy.mock.calls[0]
+      expect(callArgs).toBeDefined()
+      const loggedJson = callArgs?.[1] as string
+      expect(loggedJson).toBeDefined()
+      const parsed = JSON.parse(loggedJson) as Array<{ path: string[] }>
       expect(parsed).toHaveLength(3)
-      expect(parsed[0].path).toEqual(['dataCid'])
+      expect(parsed[0]?.path).toEqual(['dataCid'])
     })
   })
 })
