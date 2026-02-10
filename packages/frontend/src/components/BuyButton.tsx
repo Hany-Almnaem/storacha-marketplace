@@ -15,11 +15,11 @@ const USDC_ADDRESS = process.env['NEXT_PUBLIC_USDC_ADDRESS'] as `0x${string}`
 type Status = 'idle' | 'approving' | 'buying' | 'done' | 'error'
 
 interface BuyButtonProps {
-  listingId: string
+  onchainId: number
   priceUsdc: string
 }
 
-export default function BuyButton({ listingId, priceUsdc }: BuyButtonProps) {
+export default function BuyButton({ onchainId, priceUsdc }: BuyButtonProps) {
   const { address } = useAccount()
   const [status, setStatus] = useState<Status>('idle')
   const [error, setError] = useState<string | null>(null)
@@ -45,7 +45,7 @@ export default function BuyButton({ listingId, priceUsdc }: BuyButtonProps) {
       await approveIfNeeded()
 
       setStatus('buying')
-      await purchase(Number(listingId))
+      await purchase(Number(onchainId)) // ✅ FIXED
 
       setStatus('done')
     } catch (err) {

@@ -136,6 +136,7 @@ router.get(
       }
 
       const walletAddress = (req as AuthenticatedRequest).walletAddress
+      console.log('address:', walletAddress)
       const isSeller =
         walletAddress &&
         walletAddress.toLowerCase() === listing.sellerAddress.toLowerCase()
@@ -155,6 +156,7 @@ router.get(
         createdAt: listing.createdAt,
         updatedAt: listing.updatedAt,
         salesCount: listing._count.purchases,
+        onchainId: listing.onchainId,
       }
 
       if (isSeller) {
@@ -177,7 +179,6 @@ router.get(
         return res.json({
           listing: {
             ...baseListing,
-            onchainId: listing.onchainId,
             envelopeHash: listing.envelopeHash,
             purchases,
           },

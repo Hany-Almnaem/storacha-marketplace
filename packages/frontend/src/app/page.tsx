@@ -28,7 +28,7 @@ export default function Home() {
           </p>
 
           <div className="mt-10 flex items-center justify-center gap-4">
-            <Link href="/listings" className="btn-primary px-8 py-3 text-base">
+            <Link href="/listing" className="btn-primary px-8 py-3 text-base">
               Browse Datasets
             </Link>
             <Link href="/sell/new" className="btn-outline px-8 py-3 text-base">
