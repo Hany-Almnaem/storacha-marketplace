@@ -12,11 +12,6 @@ import {
 import { KeyBackupPrompt } from '../../../components/KeyBackupPrompt'
 import { UploadDataset } from '../../../components/UploadDataset'
 import { formatApiError, logValidationError } from '../../../lib/api-error'
-import {
-  validateListingForm,
-  getCharCountStatus,
-  type ListingFormErrors,
-} from '../../../lib/form-validation'
 
 const MARKETPLACE_ABI = [
   {
@@ -105,36 +100,26 @@ export default function NewListingPage() {
   const [price, setPrice] = useState('')
   const [savingBackend, setSavingBackend] = useState(false)
   const [backendError, setBackendError] = useState<string | null>(null)
-  const [formErrors, setFormErrors] = useState<ListingFormErrors>({})
   const [touched, setTouched] = useState<Record<string, boolean>>({})
 
   const { address } = useAccount()
   const { signMessageAsync } = useSignMessage()
 
   const { data: hash, isPending, writeContract } = useWriteContract()
-
   const {
     isLoading: isConfirming,
     isSuccess: isConfirmed,
     data: receipt,
-  } = useWaitForTransactionReceipt({
-    hash,
-  })
+  } = useWaitForTransactionReceipt({ hash })
 
-  // Validate form fields when they change
-  useEffect(() => {
-    const { errors } = validateListingForm(title, description, price)
-    setFormErrors(errors)
-  }, [title, description, price])
+  const usdcRegex = /^\d+(\.\d{1,6})?$/
 
-  // Check if form is valid for submission
+  const isValidPrice =
+    usdcRegex.test(price) && Number(price) > 0 && Number(price) < 1_000_000_000
+
   const isFormValid =
-    title.trim().length >= 3 &&
-    description.trim().length >= 10 &&
-    price.trim() !== '' &&
-    parseFloat(price) > 0
+    title.trim().length >= 3 && description.trim().length >= 10 && isValidPrice
 
-  // Handle field blur to show validation errors
   const handleBlur = (field: string) => {
     setTouched((prev) => ({ ...prev, [field]: true }))
   }
@@ -149,7 +134,7 @@ export default function NewListingPage() {
   }
 
   const handleCreateListing = async () => {
-    if (!uploadResult || !price) return
+    if (!uploadResult || !isValidPrice) return
 
     try {
       const priceInUnits = parseUnits(price, 6)
@@ -170,6 +155,8 @@ export default function NewListingPage() {
     }
   }
 
+  /* ================= BACKEND SAVE ================= */
+
   useEffect(() => {
     const saveToBackend = async () => {
       if (isConfirmed && receipt && uploadResult && address && !savingBackend) {
@@ -189,14 +176,12 @@ export default function NewListingPage() {
                 break
               }
             } catch {
-              // Ignore decoding errors for non-matching events
+              console.log('Error')
             }
           }
 
           if (listingId === null) {
-            throw new Error(
-              'Could not find ListingCreated event in transaction logs'
-            )
+            throw new Error('Could not find ListingCreated event')
           }
 
           const timestamp = Math.floor(Date.now() / 1000).toString()
@@ -233,7 +218,6 @@ export default function NewListingPage() {
 
           setStep('success')
         } catch (err) {
-          console.error('Backend save failed:', err)
           setBackendError(
             err instanceof Error
               ? err.message
@@ -245,7 +229,7 @@ export default function NewListingPage() {
       }
     }
 
-    if (isConfirmed && !savingBackend && step === 'details') {
+    if (isConfirmed && step === 'details') {
       saveToBackend()
     }
   }, [
@@ -262,28 +246,18 @@ export default function NewListingPage() {
     signMessageAsync,
   ])
 
-  return (
-    <main className="min-h-screen bg-gray-50 py-12 px-4 sm:px-6 lg:px-8">
-      <div className="max-w-3xl mx-auto">
-        <div className="mb-8 text-center">
-          <h1 className="text-3xl font-bold text-gray-900">Sell New Dataset</h1>
-          <p className="mt-2 text-gray-600">
-            Securely encrypt, upload, and list your data for sale.
-          </p>
-        </div>
+  /* ================= UI ================= */
 
-        <div className="mb-8 flex justify-center items-center gap-4 text-sm font-medium text-gray-500">
-          <span className={step === 'upload' ? 'text-blue-600' : ''}>
-            1. Upload
-          </span>
-          <span>→</span>
-          <span className={step === 'backup' ? 'text-blue-600' : ''}>
-            2. Backup Key
-          </span>
-          <span>→</span>
-          <span className={step === 'details' ? 'text-blue-600' : ''}>
-            3. Details
-          </span>
+  return (
+    <main className="min-h-screen bg-background py-16 px-4">
+      <div className="mx-auto max-w-3xl">
+        <div className="text-center mb-12">
+          <h1 className="text-4xl font-bold text-foreground">
+            Sell New Dataset
+          </h1>
+          <p className="mt-4 text-muted-foreground">
+            Encrypt, upload, and list your dataset securely.
+          </p>
         </div>
 
         {step === 'upload' && (
@@ -298,127 +272,129 @@ export default function NewListingPage() {
         )}
 
         {step === 'details' && uploadResult && (
-          <div className="bg-white p-6 rounded-lg shadow-md border border-gray-200">
-            <h2 className="text-xl font-bold mb-6">Listing Details</h2>
+          <div className="card p-8 space-y-6">
+            <h2 className="text-2xl font-semibold text-foreground">
+              Listing Details
+            </h2>
 
-            <div className="mb-4">
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                File Name
-              </label>
-              <div className="text-gray-900 p-2 bg-gray-50 rounded border border-gray-200">
-                {uploadResult.fileName} (
-                {(uploadResult.fileSize / 1024 / 1024).toFixed(2)} MB)
-              </div>
+            {/* File Info */}
+            <div className="rounded-xl border border-border bg-muted/30 px-4 py-3 text-sm text-muted-foreground">
+              <p className="font-medium text-foreground">
+                {uploadResult.fileName}
+              </p>
+              <p>{(uploadResult.fileSize / 1024 / 1024).toFixed(2)} MB</p>
             </div>
 
-            <div className="mb-4">
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Title <span className="text-red-500">*</span>
+            {/* Title */}
+            <div>
+              <label className="text-sm font-medium text-foreground">
+                Title *
               </label>
               <input
-                type="text"
                 value={title}
                 onChange={(e) => setTitle(e.target.value)}
                 onBlur={() => handleBlur('title')}
-                className={`w-full px-4 py-2 border rounded-md focus:ring-blue-500 focus:border-blue-500 ${
-                  touched['title'] && formErrors.title
-                    ? 'border-red-500 bg-red-50'
-                    : 'border-gray-300'
+                className={`w-full rounded-xl border bg-background px-4 py-2 text-foreground transition-all
+                focus:ring-2 focus:ring-brand-500 focus:outline-none
+                ${
+                  touched['title'] && title.trim().length < 3
+                    ? 'border-red-500 bg-red-500/5'
+                    : 'border-border'
                 }`}
-                placeholder="Dataset Title (min 3 characters)"
               />
-              <div className="flex justify-between mt-1">
-                {touched['title'] && formErrors.title ? (
-                  <span className="text-sm text-red-600">
-                    {formErrors.title}
-                  </span>
-                ) : (
-                  <span />
-                )}
-                <span
-                  className={`text-xs ${getCharCountStatus(title.length, 3, 100).className}`}
-                >
-                  {getCharCountStatus(title.length, 3, 100).text}
-                </span>
-              </div>
+              {touched['title'] && title.trim().length < 3 && (
+                <p className="text-sm text-red-500 mt-1">
+                  Minimum 3 characters required
+                </p>
+              )}
             </div>
 
-            <div className="mb-4">
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Category
-              </label>
-              <select
-                value={category}
-                onChange={(e) => setCategory(e.target.value)}
-                className="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
-              >
-                {CATEGORIES.map((c) => (
-                  <option key={c} value={c}>
-                    {c}
-                  </option>
-                ))}
-              </select>
-            </div>
-
-            <div className="mb-4">
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Description <span className="text-red-500">*</span>
+            {/* Description */}
+            <div>
+              <label className="text-sm font-medium text-foreground">
+                Description *
               </label>
               <textarea
                 value={description}
                 onChange={(e) => setDescription(e.target.value)}
                 onBlur={() => handleBlur('description')}
-                className={`w-full px-4 py-2 border rounded-md focus:ring-blue-500 focus:border-blue-500 h-32 ${
-                  touched['description'] && formErrors.description
-                    ? 'border-red-500 bg-red-50'
-                    : 'border-gray-300'
+                className={`w-full rounded-xl border bg-background px-4 py-2 text-foreground transition-all h-32
+                focus:ring-2 focus:ring-brand-500 focus:outline-none
+                ${
+                  touched['description'] && description.trim().length < 10
+                    ? 'border-red-500 bg-red-500/5'
+                    : 'border-border'
                 }`}
-                placeholder="Describe your dataset in detail (min 10 characters)..."
               />
-              <div className="flex justify-between mt-1">
-                {touched['description'] && formErrors.description ? (
-                  <span className="text-sm text-red-600">
-                    {formErrors.description}
-                  </span>
-                ) : (
-                  <span />
-                )}
-                <span
-                  className={`text-xs ${getCharCountStatus(description.length, 10, 5000).className}`}
-                >
-                  {getCharCountStatus(description.length, 10, 5000).text}
-                </span>
-              </div>
+              {touched['description'] && description.trim().length < 10 && (
+                <p className="text-sm text-red-500 mt-1">
+                  Minimum 10 characters required
+                </p>
+              )}
             </div>
 
-            <div className="mb-6">
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Price (USDC) <span className="text-red-500">*</span>
+            {/* Category */}
+            <div>
+              <label className="text-sm font-medium text-foreground">
+                Category
+              </label>
+              <select
+                value={category}
+                onChange={(e) => setCategory(e.target.value)}
+                className="w-full rounded-xl border border-border bg-background px-4 py-2 text-foreground
+                focus:ring-2 focus:ring-brand-500 focus:outline-none transition-all"
+              >
+                {CATEGORIES.map((c) => (
+                  <option key={c}>{c}</option>
+                ))}
+              </select>
+            </div>
+
+            {/* Price */}
+            <div>
+              <label className="text-sm font-medium text-foreground">
+                Price (USDC) *
               </label>
               <input
-                type="number"
-                step="0.01"
-                min="0"
                 value={price}
                 onChange={(e) => setPrice(e.target.value)}
                 onBlur={() => handleBlur('price')}
-                className={`w-full px-4 py-2 border rounded-md focus:ring-blue-500 focus:border-blue-500 ${
-                  touched['price'] && formErrors.price
-                    ? 'border-red-500 bg-red-50'
-                    : 'border-gray-300'
-                }`}
                 placeholder="10.00"
+                className={`w-full rounded-xl border bg-background px-4 py-2 text-foreground transition-all
+                focus:ring-2 focus:ring-brand-500 focus:outline-none
+                ${
+                  touched['price'] && !isValidPrice
+                    ? 'border-red-500 bg-red-500/5'
+                    : 'border-border'
+                }`}
               />
-              {touched['price'] && formErrors.price && (
-                <span className="text-sm text-red-600 mt-1 block">
-                  {formErrors.price}
-                </span>
+
+              {touched['price'] && (
+                <>
+                  {!price && (
+                    <p className="text-sm text-red-500 mt-1">
+                      Price is required
+                    </p>
+                  )}
+
+                  {price && !usdcRegex.test(price) && (
+                    <p className="text-sm text-red-500 mt-1">
+                      Max 6 decimal places allowed
+                    </p>
+                  )}
+
+                  {price && usdcRegex.test(price) && Number(price) <= 0 && (
+                    <p className="text-sm text-red-500 mt-1">
+                      Must be greater than 0
+                    </p>
+                  )}
+                </>
               )}
             </div>
 
             {backendError && (
-              <div className="mb-4 p-3 bg-red-100 text-red-700 rounded border border-red-200 text-sm">
-                Error saving listing: {backendError}
+              <div className="rounded-xl border border-red-500/30 bg-red-500/10 px-4 py-3 text-sm text-red-500">
+                {backendError}
               </div>
             )}
 
@@ -427,10 +403,12 @@ export default function NewListingPage() {
               disabled={
                 !isFormValid || isPending || isConfirming || savingBackend
               }
-              className={`w-full py-3 px-4 rounded-md font-bold text-white transition-colors ${
+              className={`w-full rounded-xl py-3 px-6 font-semibold text-white
+              transition-all duration-200 shadow-sm
+              ${
                 !isFormValid || isPending || isConfirming || savingBackend
-                  ? 'bg-gray-400 cursor-not-allowed'
-                  : 'bg-blue-600 hover:bg-blue-700'
+                  ? 'bg-muted opacity-60 cursor-not-allowed'
+                  : 'bg-brand-500 hover:bg-brand-600 active:scale-[0.98]'
               }`}
             >
               {isPending
@@ -443,10 +421,10 @@ export default function NewListingPage() {
             </button>
 
             {hash && (
-              <div className="mt-4 text-center text-sm text-gray-500">
-                Tx Hash:{' '}
-                <span className="font-mono">
-                  {hash.slice(0, 10)}...{hash.slice(-8)}
+              <div className="text-sm text-muted-foreground text-center mt-3">
+                Tx:{' '}
+                <span className="font-mono bg-muted px-2 py-1 rounded">
+                  {hash.slice(0, 8)}...{hash.slice(-6)}
                 </span>
               </div>
             )}
@@ -454,32 +432,11 @@ export default function NewListingPage() {
         )}
 
         {step === 'success' && (
-          <div className="bg-white p-8 rounded-lg shadow-md border border-green-200 text-center">
-            <div className="mx-auto flex items-center justify-center h-12 w-12 rounded-full bg-green-100 mb-4">
-              <svg
-                className="h-6 w-6 text-green-600"
-                fill="none"
-                stroke="currentColor"
-                viewBox="0 0 24 24"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth="2"
-                  d="M5 13l4 4L19 7"
-                />
-              </svg>
-            </div>
-            <h2 className="text-2xl font-bold text-gray-900 mb-2">
+          <div className="card p-10 text-center">
+            <h2 className="text-2xl font-bold text-green-500 mb-4">
               Listing Created!
             </h2>
-            <p className="text-gray-600 mb-6">
-              Your dataset is now listed for sale on the marketplace.
-            </p>
-            <a
-              href="/"
-              className="inline-block bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-6 rounded transition-colors"
-            >
+            <a href="/listing" className="btn-primary px-8 py-3">
               Go to Marketplace
             </a>
           </div>
