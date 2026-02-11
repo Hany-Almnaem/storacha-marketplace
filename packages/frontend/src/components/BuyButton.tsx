@@ -121,7 +121,7 @@ export default function BuyButton({ onchainId, priceUsdc }: BuyButtonProps) {
       )
 
       /* 6️⃣ Sign bind message (separate from auth signature) */
-      const bindTimestamp = Date.now().toString()
+      const bindTimestamp = Date.now()
 
       const bindMessage = `I am the buyer of purchase ${purchaseRecord.id}.\nMy public key: ${publicKeyBase64}\nTimestamp: ${bindTimestamp}`
 
