@@ -29,6 +29,7 @@ export default function BuyButton({ onchainId, priceUsdc }: BuyButtonProps) {
     MARKETPLACE_ADDRESS,
     priceUsdc
   )
+  console.log('Frontend contract:', MARKETPLACE_ADDRESS)
 
   const { purchase } = usePurchaseAccess(MARKETPLACE_ADDRESS)
 
@@ -45,7 +46,7 @@ export default function BuyButton({ onchainId, priceUsdc }: BuyButtonProps) {
       await approveIfNeeded()
 
       setStatus('buying')
-      await purchase(Number(onchainId)) // ✅ FIXED
+      await purchase(onchainId)
 
       setStatus('done')
     } catch (err) {
@@ -60,11 +61,7 @@ export default function BuyButton({ onchainId, priceUsdc }: BuyButtonProps) {
       <button
         onClick={handleBuy}
         disabled={status !== 'idle'}
-        className={`w-full py-3 px-4 rounded-md font-bold text-white transition-colors ${
-          status !== 'idle'
-            ? 'bg-gray-400 cursor-not-allowed'
-            : 'bg-blue-600 hover:bg-blue-700'
-        }`}
+        className="w-full py-3 px-4 rounded-md font-bold text-white bg-blue-600 hover:bg-blue-700 disabled:bg-gray-400"
       >
         {status === 'idle' && `Buy for ${priceUsdc} USDC`}
         {status === 'approving' && 'Approving USDC…'}

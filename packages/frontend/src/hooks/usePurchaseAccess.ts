@@ -13,12 +13,16 @@ const MARKETPLACE_ABI = [
 export function usePurchaseAccess(marketplaceAddress: `0x${string}`) {
   const { writeContractAsync } = useWriteContract()
 
-  const purchase = async (listingId: number) => {
+  const purchase = async (onchainId: number) => {
+    if (onchainId === undefined || onchainId === null) {
+      throw new Error('Invalid onchainId')
+    }
+
     return writeContractAsync({
       address: marketplaceAddress,
       abi: MARKETPLACE_ABI,
       functionName: 'purchaseAccess',
-      args: [BigInt(listingId)],
+      args: [BigInt(onchainId)],
     })
   }
 

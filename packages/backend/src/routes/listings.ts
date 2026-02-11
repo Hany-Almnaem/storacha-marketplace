@@ -136,7 +136,6 @@ router.get(
       }
 
       const walletAddress = (req as AuthenticatedRequest).walletAddress
-      console.log('address:', walletAddress)
       const isSeller =
         walletAddress &&
         walletAddress.toLowerCase() === listing.sellerAddress.toLowerCase()
