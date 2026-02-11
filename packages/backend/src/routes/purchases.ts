@@ -50,7 +50,7 @@ function buildBindKeyMessage(
   publicKey: string,
   timestamp: number
 ): string {
-  const encodedKey = Buffer.from(publicKey, 'utf8').toString('base64')
+  const encodedKey = publicKey
 
   return `I am the buyer of purchase ${purchaseId}.\nMy public key: ${encodedKey}\nTimestamp: ${timestamp}`
 }

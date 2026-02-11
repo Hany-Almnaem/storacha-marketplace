@@ -1,17 +1,7 @@
 import { parseUnits } from 'viem'
-import { useAccount, useReadContract, useWriteContract } from 'wagmi'
+import { useWriteContract } from 'wagmi'
 
-const USDC_ABI = [
-  {
-    name: 'allowance',
-    type: 'function',
-    stateMutability: 'view',
-    inputs: [
-      { name: 'owner', type: 'address' },
-      { name: 'spender', type: 'address' },
-    ],
-    outputs: [{ type: 'uint256' }],
-  },
+const ERC20_ABI = [
   {
     name: 'approve',
     type: 'function',
@@ -26,28 +16,19 @@ const USDC_ABI = [
 
 export function useUsdcApproval(
   usdcAddress: `0x${string}`,
-  spender: `0x${string}`,
-  amount: string
+  marketplaceAddress: `0x${string}`,
+  priceUsdc: string
 ) {
-  const { address } = useAccount()
   const { writeContractAsync } = useWriteContract()
 
-  const { data: allowance } = useReadContract({
-    address: usdcAddress,
-    abi: USDC_ABI,
-    functionName: 'allowance',
-    args: address ? [address, spender] : undefined,
-  })
-
   const approveIfNeeded = async () => {
-    const required = parseUnits(amount, 6)
-    if (allowance && allowance >= required) return
+    const amount = parseUnits(priceUsdc, 6) // ✅ USDC = 6 decimals
 
-    await writeContractAsync({
+    return writeContractAsync({
       address: usdcAddress,
-      abi: USDC_ABI,
+      abi: ERC20_ABI,
       functionName: 'approve',
-      args: [spender, required],
+      args: [marketplaceAddress, amount],
     })
   }
 

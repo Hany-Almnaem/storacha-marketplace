@@ -202,7 +202,9 @@ const ListingDetailPage = ({ params }: { params: { id: string } }) => {
                     <p className="text-xs text-gray-500 uppercase">
                       Total Sales
                     </p>
-                    <p className="text-xl font-bold">{listing.salesCount}</p>
+                    <p className="text-xl font-bold text-black">
+                      {listing.salesCount}
+                    </p>
                   </div>
                   <div className="bg-white p-4 rounded-xl shadow-sm">
                     <p className="text-xs text-gray-500 uppercase">Revenue</p>
