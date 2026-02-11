@@ -39,7 +39,7 @@ export default function PurchasesPage() {
     setMounted(true)
   }, [])
 
-  const fetchPurchases = async () => {
+  async function fetchPurchases() {
     if (!address || !isConnected) return
 
     setLoading(true)
@@ -56,18 +56,12 @@ export default function PurchasesPage() {
         headers: { Authorization: authHeader },
       })
 
-      if (!res.ok) {
-        throw new Error('Failed to fetch purchases')
-      }
+      if (!res.ok) throw new Error('Failed to fetch purchases')
 
       const json = await res.json()
       setPurchases(json.purchases ?? [])
     } catch (err) {
-      setError(
-        err instanceof Error
-          ? err.message
-          : 'Something went wrong while loading purchases.'
-      )
+      setError(err instanceof Error ? err.message : 'Unable to load purchases.')
     } finally {
       setLoading(false)
     }
@@ -81,110 +75,120 @@ export default function PurchasesPage() {
 
   if (!mounted) return null
 
+  /* ------------------------------------------------ */
+  /* 🔌 Not Connected */
+  /* ------------------------------------------------ */
+
   if (!isConnected) {
     return (
-      <main className="min-h-screen flex flex-col items-center justify-center bg-gray-50 p-6 text-center">
-        <Wallet className="w-10 h-10 text-blue-600 mb-4" />
-        <h2 className="text-xl font-semibold text-gray-900">
+      <main className="min-h-screen flex flex-col items-center justify-center text-center px-6">
+        <Wallet className="w-10 h-10 text-brand-500 mb-4" />
+        <h2 className="text-xl font-semibold text-foreground">
           Connect your wallet
         </h2>
-        <p className="text-gray-500 mt-2">
-          You need to connect your wallet to view purchases.
+        <p className="text-muted-foreground mt-2 max-w-md">
+          You must connect your wallet to view your encrypted dataset purchases.
         </p>
       </main>
     )
   }
 
+  /* ------------------------------------------------ */
+  /* 🧱 Main Page */
+  /* ------------------------------------------------ */
+
   return (
-    <main className="min-h-screen bg-gray-50 py-12 px-4">
-      <div className="max-w-5xl mx-auto">
+    <main className="min-h-screen py-12 px-4">
+      <div className="mx-auto max-w-5xl">
         {/* Header */}
-        <div className="flex justify-between items-center mb-8">
-          <h1 className="text-3xl font-bold text-gray-900 flex items-center">
-            <Package className="w-7 h-7 mr-3 text-blue-600" />
+        <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 mb-10">
+          <h1 className="flex items-center text-3xl font-bold text-foreground">
+            <Package className="w-7 h-7 mr-3 text-brand-500" />
             My Purchases
           </h1>
 
           <button
             onClick={fetchPurchases}
             disabled={loading}
-            className="flex items-center px-4 py-2 bg-gray-900 text-white rounded-lg hover:bg-gray-800 transition disabled:opacity-50"
+            className="inline-flex items-center gap-2 rounded-lg border border-border bg-card px-4 py-2 text-sm font-medium text-foreground hover:bg-card/80 transition disabled:opacity-50"
           >
-            <RefreshCw className="w-4 h-4 mr-2" />
+            <RefreshCw className="w-4 h-4" />
             Refresh
           </button>
         </div>
 
-        {/* Loading State */}
+        {/* Loading */}
         {loading && (
           <div className="flex items-center justify-center py-20">
-            <Loader2 className="w-8 h-8 text-blue-600 animate-spin" />
+            <Loader2 className="w-8 h-8 animate-spin text-brand-500" />
           </div>
         )}
 
-        {/* Error State */}
+        {/* Error */}
         {error && (
-          <div className="bg-red-50 border border-red-200 text-red-700 p-4 rounded-xl flex items-center">
-            <AlertCircle className="w-5 h-5 mr-3" />
+          <div className="mb-6 flex items-center gap-3 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-600">
+            <AlertCircle className="w-4 h-4" />
             {error}
           </div>
         )}
 
-        {/* Empty State */}
+        {/* Empty */}
         {!loading && purchases.length === 0 && !error && (
-          <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-10 text-center">
-            <Package className="w-10 h-10 mx-auto text-gray-400 mb-4" />
-            <h3 className="text-lg font-semibold text-gray-900">
+          <div className="card text-center py-14">
+            <Package className="w-10 h-10 mx-auto text-muted-foreground mb-4" />
+            <h3 className="text-lg font-semibold text-foreground">
               No purchases yet
             </h3>
-            <p className="text-gray-500 mt-2">
-              Browse the marketplace and purchase datasets.
+            <p className="text-sm text-muted-foreground mt-2">
+              Browse the marketplace and unlock encrypted datasets.
             </p>
           </div>
         )}
 
-        {/* Purchase Cards */}
+        {/* Purchases */}
         <div className="space-y-6">
           {purchases.map((purchase) => (
             <div
               key={purchase.id}
-              className="bg-white rounded-2xl border border-gray-200 shadow-sm p-6 flex flex-col md:flex-row md:items-center md:justify-between"
+              className="card flex flex-col md:flex-row md:items-center md:justify-between gap-6"
             >
+              {/* Left */}
               <div>
-                <h2 className="text-lg font-semibold text-gray-900">
+                <div className="mb-2 inline-flex items-center rounded-full bg-brand-500/10 px-3 py-1 text-xs font-medium text-brand-500">
+                  {purchase.listing.category}
+                </div>
+
+                <h2 className="text-lg font-semibold text-foreground">
                   {purchase.listing.title}
                 </h2>
 
-                <p className="text-sm text-gray-500 mt-1">
-                  Category: {purchase.listing.category}
-                </p>
-
-                <p className="text-xs text-gray-400 mt-2">
+                <p className="text-xs text-muted-foreground mt-2">
                   Purchased on {new Date(purchase.createdAt).toLocaleString()}
                 </p>
               </div>
 
-              <div className="mt-4 md:mt-0 flex items-center space-x-4">
+              {/* Right */}
+              <div className="flex items-center gap-4">
                 {purchase.keyDelivered ? (
-                  <span className="flex items-center px-3 py-1 text-sm font-medium bg-green-100 text-green-700 rounded-full">
-                    <CheckCircle2 className="w-4 h-4 mr-1" />
+                  <span className="inline-flex items-center gap-2 rounded-full bg-green-500/10 px-3 py-1 text-sm font-medium text-green-600">
+                    <CheckCircle2 className="w-4 h-4" />
                     Key Delivered
                   </span>
                 ) : (
-                  <span className="flex items-center px-3 py-1 text-sm font-medium bg-yellow-100 text-yellow-700 rounded-full">
-                    <Clock className="w-4 h-4 mr-1" />
+                  <span className="inline-flex items-center gap-2 rounded-full bg-yellow-500/10 px-3 py-1 text-sm font-medium text-yellow-600">
+                    <Clock className="w-4 h-4" />
                     Awaiting Key
                   </span>
                 )}
 
                 {purchase.keyDelivered && (
                   <button
-                    className="flex items-center px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition"
+                    className="btn-primary inline-flex items-center gap-2 px-4 py-2 text-sm"
                     onClick={() =>
                       alert('Implement decrypt & download flow here.')
                     }
                   >
-                    <Download className="w-4 h-4 mr-2" />
+                    <Download className="w-4 h-4" />
                     Access
                   </button>
                 )}

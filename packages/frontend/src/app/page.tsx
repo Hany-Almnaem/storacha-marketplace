@@ -1,16 +1,9 @@
 import Link from 'next/link'
 
-import { ConnectWallet } from '@/components/ConnectWallet'
-import { ThemeToggle } from '@/components/ThemeToggle'
-
 export default function Home() {
   return (
     <main className="min-h-screen gradient-mesh">
-      <div className="mx-auto max-w-7xl px-4 pt-10 flex items-center justify-end gap-3">
-        <ThemeToggle />
-        <ConnectWallet />
-      </div>
-      <div className="mx-auto max-w-7xl px-4 pb-24 sm:px-6 lg:px-8">
+      <div className="mx-auto max-w-7xl py-10 px-4 pb-24 sm:px-6 lg:px-8">
         <div className="animate-fade-in text-center">
           <div className="mb-6 inline-flex items-center rounded-full bg-brand-500/10 px-4 py-1.5 text-sm font-medium text-brand-600 dark:text-brand-400">
             <span className="animate-pulse-slow mr-2 h-2 w-2 rounded-full bg-brand-500" />

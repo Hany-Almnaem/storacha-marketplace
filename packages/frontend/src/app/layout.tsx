@@ -2,10 +2,9 @@ import type { Metadata } from 'next'
 import { JetBrains_Mono, Outfit } from 'next/font/google'
 import { ThemeProvider } from 'next-themes'
 
-import { Web3Provider } from '@/providers/Web3Provider'
-
-import { Providers } from './providers'
 import './globals.css'
+import Navbar from '@/components/Navbar'
+import { Web3Provider } from '@/providers/Web3Provider'
 
 const outfit = Outfit({
   subsets: ['latin'],
@@ -40,7 +39,10 @@ export default function RootLayout({
         className={`${outfit.variable} ${jetbrainsMono.variable} font-sans antialiased`}
       >
         <ThemeProvider attribute="class" defaultTheme="system" enableSystem>
-          <Web3Provider>{children}</Web3Provider>
+          <Web3Provider>
+            <Navbar />
+            <main className="min-h-screen bg-background">{children}</main>
+          </Web3Provider>
         </ThemeProvider>
       </body>
     </html>

@@ -1,4 +1,7 @@
+import { Search, Filter } from 'lucide-react'
 import Link from 'next/link'
+
+import ListingCard from '@/components/ListingCard'
 
 const API_URL = process.env['NEXT_PUBLIC_API_URL'] || 'http://localhost:3001'
 
@@ -10,8 +13,24 @@ interface Listing {
   priceUsdc: string
 }
 
-async function getListings(): Promise<Listing[]> {
-  const res = await fetch(`${API_URL}/api/listings`, {
+interface PageProps {
+  searchParams?: {
+    q?: string
+    category?: string
+    minPrice?: string
+    maxPrice?: string
+  }
+}
+
+async function getListings(params: PageProps['searchParams']) {
+  const query = new URLSearchParams()
+
+  if (params?.q) query.set('q', params.q)
+  if (params?.category) query.set('category', params.category)
+  if (params?.minPrice) query.set('minPrice', params.minPrice)
+  if (params?.maxPrice) query.set('maxPrice', params.maxPrice)
+
+  const res = await fetch(`${API_URL}/api/listings?${query.toString()}`, {
     cache: 'no-store',
   })
 
@@ -20,60 +39,103 @@ async function getListings(): Promise<Listing[]> {
   }
 
   const json = await res.json()
-
-  // ✅ API returns { listings, nextCursor, categories }
   return json.listings ?? []
 }
 
-export default async function ListingPage() {
-  const listings = await getListings()
+export default async function ListingPage({ searchParams }: PageProps) {
+  const listings = await getListings(searchParams)
 
   return (
-    <main className="min-h-screen bg-gray-50 py-12 px-4 sm:px-6 lg:px-8">
-      <div className="max-w-7xl mx-auto">
+    <main className="min-h-screen gradient-mesh">
+      <div className="mx-auto max-w-7xl px-4 py-12 sm:px-6 lg:px-8">
         {/* Header */}
-        <div className="mb-8">
-          <h1 className="text-3xl font-bold text-gray-900">Data Marketplace</h1>
-          <p className="mt-2 text-gray-600">
-            Browse encrypted datasets. Pay once, decrypt locally.
+        <div className="mb-10 text-center animate-fade-in">
+          <h1 className="text-4xl font-bold tracking-tight text-foreground sm:text-5xl">
+            Browse <span className="text-brand-500">Datasets</span>
+          </h1>
+          <p className="mt-3 text-muted-foreground">
+            Encrypted datasets. On-chain payments. Local decryption.
           </p>
         </div>
 
-        {/* Listings */}
+        {/* Search + Filters */}
+        <form
+          method="GET"
+          className="mb-10 grid gap-4 rounded-xl border border-border bg-card/50 p-6 backdrop-blur-sm md:grid-cols-5"
+        >
+          {/* Search */}
+          <div className="relative md:col-span-2">
+            <Search className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
+            <input
+              type="text"
+              name="q"
+              placeholder="Search datasets..."
+              defaultValue={searchParams?.q}
+              className="w-full rounded-lg border border-border bg-background px-10 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500"
+            />
+          </div>
+
+          {/* Category */}
+          <select
+            name="category"
+            defaultValue={searchParams?.category}
+            className="rounded-lg border border-border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500"
+          >
+            <option value="">All Categories</option>
+            <option value="AI/ML">AI/ML</option>
+            <option value="IoT">IoT</option>
+            <option value="Health">Health</option>
+            <option value="Finance">Finance</option>
+            <option value="Other">Other</option>
+          </select>
+
+          {/* Min Price */}
+          <input
+            type="number"
+            name="minPrice"
+            placeholder="Min USDC"
+            defaultValue={searchParams?.minPrice}
+            className="rounded-lg border border-border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500"
+          />
+
+          {/* Max Price */}
+          <input
+            type="number"
+            name="maxPrice"
+            placeholder="Max USDC"
+            defaultValue={searchParams?.maxPrice}
+            className="rounded-lg border border-border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500"
+          />
+
+          {/* Button */}
+          <button
+            type="submit"
+            className="md:col-span-5 flex items-center justify-center gap-2 rounded-lg bg-brand-500 px-4 py-2 text-sm font-medium text-white hover:bg-brand-600 transition"
+          >
+            <Filter className="h-4 w-4" />
+            Apply Filters
+          </button>
+        </form>
+
+        {/* Listings Grid */}
         {listings.length === 0 ? (
-          <div className="bg-white border border-gray-200 rounded-lg p-8 text-center text-gray-500">
-            No listings available.
+          <div className="rounded-xl border border-border bg-card p-10 text-center text-muted-foreground">
+            No datasets match your filters.
           </div>
         ) : (
-          <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
-            {listings.map((listing) => (
+          <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3 animate-slide-up">
+            {listings.map((listing: Listing) => (
               <Link
                 key={listing.id}
                 href={`/listing/${listing.id}`}
-                className="group bg-white border border-gray-200 rounded-lg p-6 shadow-sm hover:shadow-md transition"
+                className="card group"
               >
-                <div className="flex flex-col h-full">
-                  <div className="mb-3">
-                    <span className="inline-block text-xs font-medium text-blue-600 bg-blue-50 px-2 py-1 rounded">
-                      {listing.category}
-                    </span>
-                  </div>
-
-                  <h2 className="text-lg font-bold text-gray-900 mb-2 group-hover:text-blue-600 transition">
-                    {listing.title}
-                  </h2>
-
-                  <p className="text-sm text-gray-600 line-clamp-3 mb-4">
-                    {listing.description}
-                  </p>
-
-                  <div className="mt-auto flex justify-between items-center pt-4 border-t border-gray-100">
-                    <span className="text-sm text-gray-500">Price</span>
-                    <span className="text-lg font-semibold text-gray-900">
-                      {Number(listing.priceUsdc).toFixed(2)} USDC
-                    </span>
-                  </div>
-                </div>
+                <ListingCard
+                  title={listing.title}
+                  description={listing.description}
+                  priceUsdc={listing.priceUsdc}
+                  category={listing.category}
+                />
               </Link>
             ))}
           </div>

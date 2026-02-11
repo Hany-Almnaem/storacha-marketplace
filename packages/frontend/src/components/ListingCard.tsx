@@ -1,26 +1,40 @@
-interface ListingCardProps {
+type ListingCardProps = {
   title: string
   description: string
+  category: string
   priceUsdc: string
 }
 
-export default function ListingCard({
+const ListingCard = ({
+  category,
   title,
   description,
   priceUsdc,
-}: ListingCardProps) {
+}: ListingCardProps) => {
   return (
-    <div className="flex flex-col h-full">
-      <h3 className="text-lg font-bold text-gray-900 mb-2">{title}</h3>
+    <>
+      <div className="mb-3">
+        <span className="inline-flex items-center rounded-full bg-brand-500/10 px-3 py-1 text-xs font-medium text-brand-500">
+          {category}
+        </span>
+      </div>
 
-      <p className="text-sm text-gray-600 line-clamp-3 mb-4">{description}</p>
+      <h2 className="text-lg font-semibold text-foreground group-hover:text-brand-500 transition-colors">
+        {title}
+      </h2>
 
-      <div className="mt-auto flex justify-between items-center pt-4 border-t border-gray-100">
-        <span className="text-sm text-gray-500">Price</span>
-        <span className="text-lg font-semibold text-gray-900">
+      <p className="mt-2 line-clamp-3 text-sm text-muted-foreground">
+        {description}
+      </p>
+
+      <div className="mt-6 flex items-center justify-between border-t border-border pt-4">
+        <span className="text-xs text-muted-foreground">Price</span>
+        <span className="text-lg font-bold text-foreground">
           {Number(priceUsdc).toFixed(2)} USDC
         </span>
       </div>
-    </div>
+    </>
   )
 }
+
+export default ListingCard
