@@ -2,6 +2,7 @@
  * Test environment setup and polyfills.
  * Ensures crypto.subtle is available and provides File API compatibility.
  */
+import 'fake-indexeddb/auto'
 
 if (!globalThis.crypto?.subtle) {
   throw new Error(

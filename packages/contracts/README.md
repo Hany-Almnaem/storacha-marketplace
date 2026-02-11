@@ -1,13 +1,15 @@
 # **📦 Data Marketplace Smart Contract**
 
-A decentralized marketplace for encrypted datasets, powered by **USDC payments on Base**, **Storacha for encrypted storage**, and **UCAN** for post-purchase access control.
+A decentralized marketplace for encrypted datasets, powered by **USDC payments
+on Base**, **Storacha for encrypted storage**, and **UCAN** for post-purchase
+access control.
 
 This repository contains:
 
-* The Solidity smart contract (`DataMarketplace.sol`)
-* Comprehensive Foundry tests (`DataMarketplace.t.sol`)
-* Deployment script for Base (`Deploy.s.sol`)
-* Documentation for the full seller → buyer → backend → Storacha flow
+- The Solidity smart contract (`DataMarketplace.sol`)
+- Comprehensive Foundry tests (`DataMarketplace.t.sol`)
+- Deployment script for Base (`Deploy.s.sol`)
+- Documentation for the full seller → buyer → backend → Storacha flow
 
 ---
 
@@ -44,14 +46,15 @@ This is **NOT** a file-hosting system.
 
 This is a **trustless payment + purchase-record system** where:
 
-* Encrypted data lives on **Storacha/IPFS**
-* Decryption keys stay **off-chain**
-* Buyers pay in **USDC**
-* Smart contract records the purchase (canonical truth)
-* Backend reads events → enables access through **UCAN**
-* Sellers withdraw proceeds after a **24-hour security delay**
+- Encrypted data lives on **Storacha/IPFS**
+- Decryption keys stay **off-chain**
+- Buyers pay in **USDC**
+- Smart contract records the purchase (canonical truth)
+- Backend reads events → enables access through **UCAN**
+- Sellers withdraw proceeds after a **24-hour security delay**
 
-The contract **never handles plaintext keys** → compliant with EU Data Act privacy constraints.
+The contract **never handles plaintext keys** → compliant with EU Data Act
+privacy constraints.
 
 ---
 
@@ -69,7 +72,8 @@ The contract **never handles plaintext keys** → compliant with EU Data Act pri
 | Reentrancy protections  | All sensitive operations are `nonReentrant`                                               |
 | Multi-withdraw          | Sellers can withdraw multiple listings in a single transaction                            |
 
-This ensures a **secure, tamper-evident**, decentralized payment layer for data commerce.
+This ensures a **secure, tamper-evident**, decentralized payment layer for data
+commerce.
 
 ---
 
@@ -85,10 +89,10 @@ Pointer to **encrypted dataset** stored on Storacha.
 
 Pointer to **non-secret envelope.json**, containing:
 
-* encryption scheme
-* file chunks
-* key lookup info
-* maybe re-encryption or metadata
+- encryption scheme
+- file chunks
+- key lookup info
+- maybe re-encryption or metadata
 
 ### **3. `envelopeHash`**
 
@@ -98,9 +102,9 @@ bytes32 envelopeHash = keccak256(canonicalEnvelopeJson)
 
 This ensures:
 
-* Backend verifies envelope hasn't been modified
-* Buyers can trust envelope metadata
-* No reliance on a centralized database for critical integrity
+- Backend verifies envelope hasn't been modified
+- Buyers can trust envelope metadata
+- No reliance on a centralized database for critical integrity
 
 ---
 
@@ -175,9 +179,9 @@ forge coverage
 
 Our current suite reaches:
 
-* **96%+ line coverage**
-* **90%+ branch coverage**
-* **Full reentrancy simulation using malicious token mock**
+- **96%+ line coverage**
+- **90%+ branch coverage**
+- **Full reentrancy simulation using malicious token mock**
 
 ---
 
@@ -193,11 +197,13 @@ Our current suite reaches:
    ```
    envelopeHash = keccak256(canonicalEnvelopeJson)
    ```
+
 5. Seller calls:
 
    ```
    createListing(dataCid, envelopeCid, envelopeHash, price)
    ```
+
 6. Listing is now live.
 
 ---
@@ -213,10 +219,9 @@ Our current suite reaches:
    ```
 
 3. Contract:
-
-   * Transfers USDC
-   * Records purchase permanently
-   * Emits `PurchaseCompleted`
+   - Transfers USDC
+   - Records purchase permanently
+   - Emits `PurchaseCompleted`
 
 4. Backend picks up the event → begins access provisioning.
 
@@ -235,6 +240,7 @@ After verifying an on-chain purchase:
    ```
    keccak256(envelopeJson) == envelopeHash
    ```
+
 4. Require buyer to provide **RSA public key**
 5. Notify seller: “Buyer X purchased dataset”
 6. Seller encrypts AES key:
@@ -242,12 +248,12 @@ After verifying an on-chain purchase:
    ```
    ciphertext_K_for_buyer = Encrypt(buyerPubKey, AES_key)
    ```
+
 7. Seller uploads ciphertext to Storacha → receives `keyCid`
 8. Seller submits `keyCid` to backend
 9. Backend authorizes buyer via UCAN token:
-
-   * scope to `dataCid`
-   * includes `keyCid` for decrypting
+   - scope to `dataCid`
+   - includes `keyCid` for decrypting
 
 ### Buyer retrieves file:
 
@@ -256,7 +262,8 @@ After verifying an on-chain purchase:
 3. Downloads encrypted dataset (`dataCid`)
 4. Decrypts final dataset
 
-Smart contract is **never exposed** to plaintext keys → zero custodial liability.
+Smart contract is **never exposed** to plaintext keys → zero custodial
+liability.
 
 ---
 
@@ -283,4 +290,3 @@ Smart contract is **never exposed** to plaintext keys → zero custodial liabili
 | Multiple access tiers       | Sample vs full access      |
 | Batch listing creation      | For large dataset catalogs |
 | Optional meta-transactions  | Gasless seller actions     |
-

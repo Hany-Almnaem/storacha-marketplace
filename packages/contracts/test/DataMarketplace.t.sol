@@ -529,8 +529,6 @@ contract DataMarketplaceTest is Test {
         assertEq(afterBal - beforeBal, expectedSeller, "Seller must receive correct 6-dec payout");
     }
 
-    
-
     /* ========== GETTERS & MISC ========== */
 
     function testGetters() public {
@@ -664,7 +662,6 @@ contract DataMarketplaceTest is Test {
         marketplace.withdrawEarnings(id);
         vm.stopPrank();
     }
-
 
     function testFeeConfigsAndEdgeCases() public {
         // set fee to zero

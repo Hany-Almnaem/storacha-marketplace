@@ -96,7 +96,7 @@ async function handleUpload(file: File) {
 | ----------------------- | -------------------------------------------------- |
 | "proofs is undefined"   | Add `client.capability.access.claim()` after login |
 | "failed space/blob/add" | Pass `{ account }` when creating space             |
-| "Space not found"       | Save STORACHA_SPACE_DID in `.env`            |
+| "Space not found"       | Save STORACHA_SPACE_DID in `.env`                  |
 | Gateway 404             | Wait 5-30s for propagation, then retry             |
 
 ---
