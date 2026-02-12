@@ -20,7 +20,7 @@ export default function ListingDetailPage({
 }: {
   params: { id: string }
 }) {
-  const { isConnected } = useAccount()
+  const { isConnected, address } = useAccount()
   const { listing, loading, error } = useListingDetail(params.id)
 
   if (loading) {
@@ -46,7 +46,8 @@ export default function ListingDetailPage({
     )
   }
 
-  const isOwner = listing.purchases !== undefined
+  const isOwner =
+    address?.toLowerCase() === listing.sellerAddress?.toLowerCase()
 
   return (
     <main className="min-h-screen py-12 px-4">

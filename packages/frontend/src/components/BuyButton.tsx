@@ -32,6 +32,11 @@ interface BuyButtonProps {
   priceUsdc: string
 }
 
+interface BackendPurchase {
+  id: string
+  txHash: string
+}
+
 export default function BuyButton({ onchainId, priceUsdc }: BuyButtonProps) {
   const { address } = useAccount()
   const { signMessageAsync } = useSignMessage()
@@ -72,7 +77,8 @@ export default function BuyButton({ onchainId, priceUsdc }: BuyButtonProps) {
         const purchases = json.purchases || []
 
         const found = purchases.find(
-          (p: any) => p.txHash?.toLowerCase() === txHash.toLowerCase()
+          (p: BackendPurchase) =>
+            p.txHash?.toLowerCase() === txHash.toLowerCase()
         )
 
         if (found) return found

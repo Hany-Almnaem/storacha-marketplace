@@ -16,6 +16,7 @@ contract MockUSDC is ERC20 {
         return DECIMALS;
     }
     /// @notice Mint tokens (public for tests)
+
     function mint(address to, uint256 amount) external {
         _mint(to, amount);
     }
