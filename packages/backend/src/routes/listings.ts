@@ -155,6 +155,7 @@ router.get(
         createdAt: listing.createdAt,
         updatedAt: listing.updatedAt,
         salesCount: listing._count.purchases,
+        onchainId: listing.onchainId,
       }
 
       if (isSeller) {
@@ -177,7 +178,6 @@ router.get(
         return res.json({
           listing: {
             ...baseListing,
-            onchainId: listing.onchainId,
             envelopeHash: listing.envelopeHash,
             purchases,
           },

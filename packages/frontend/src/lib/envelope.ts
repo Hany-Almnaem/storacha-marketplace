@@ -5,17 +5,6 @@
 
 import { sha256 } from './encryption'
 
-/**
- * Encryption envelope metadata structure (v1).
- *
- * This metadata travels alongside encrypted data to document:
- * - Encryption algorithm and parameters
- * - Original file information
- * - Integrity verification (SHA-256 hash)
- *
- * Why this matters: Enables forward compatibility as encryption schemes evolve.
- * Future versions can handle v1, v2, etc. differently.
- */
 export interface EncryptionEnvelope {
   version: 'v1'
   enc: 'AES-256-GCM'
@@ -27,10 +16,6 @@ export interface EncryptionEnvelope {
 
 /**
  * Generates encryption envelope for a file.
- *
- * @param file - Original plaintext file (before encryption)
- * @param plaintextData - Original file data as ArrayBuffer
- * @returns Envelope metadata object per spec Section 3.3
  */
 export async function generateEnvelope(
   file: File,
@@ -49,25 +34,52 @@ export async function generateEnvelope(
 }
 
 /**
- * Validates envelope structure.
- *
- * @param envelope - Envelope object to validate
- * @returns true if valid, throws Error otherwise
+ * Type guard to check if unknown value is EncryptionEnvelope
+ */
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null
+}
+
+/**
+ * Validates envelope structure safely (no `any`)
  */
 export function validateEnvelope(
-  envelope: any
+  envelope: unknown
 ): envelope is EncryptionEnvelope {
-  if (envelope.version !== 'v1') {
-    throw new Error(`Unsupported envelope version: ${envelope.version}`)
+  if (!isRecord(envelope)) {
+    throw new Error('Envelope must be an object')
   }
-  if (envelope.enc !== 'AES-256-GCM') {
-    throw new Error(`Unsupported encryption algorithm: ${envelope.enc}`)
+
+  if (envelope['version'] !== 'v1') {
+    throw new Error(
+      `Unsupported envelope version: ${String(envelope['version'])}`
+    )
   }
-  if (envelope.iv_len !== 12) {
-    throw new Error(`Invalid IV length: ${envelope.iv_len}`)
+
+  if (envelope['enc'] !== 'AES-256-GCM') {
+    throw new Error(
+      `Unsupported encryption algorithm: ${String(envelope['enc'])}`
+    )
   }
-  if (!envelope.plaintext_sha256 || envelope.plaintext_sha256.length !== 64) {
+
+  if (envelope['iv_len'] !== 12) {
+    throw new Error(`Invalid IV length: ${String(envelope['iv_len'])}`)
+  }
+
+  if (
+    typeof envelope['plaintext_sha256'] !== 'string' ||
+    envelope['plaintext_sha256'].length !== 64
+  ) {
     throw new Error('Invalid or missing plaintext_sha256')
   }
+
+  if (typeof envelope['orig_filename'] !== 'string') {
+    throw new Error('Invalid or missing orig_filename')
+  }
+
+  if (typeof envelope['content_type'] !== 'string') {
+    throw new Error('Invalid or missing content_type')
+  }
+
   return true
 }

@@ -1,4 +1,3 @@
-
 export interface VerifiedPurchase {
   listingId: number
   buyer: string

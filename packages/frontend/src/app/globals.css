@@ -170,8 +170,17 @@
   }
 
   .btn-outline {
-    @apply btn border border-border bg-transparent;
+    @apply rounded-xl border border-border bg-background px-4 py-2 text-sm font-medium hover:bg-muted transition;
   }
+  
+  .input {
+    @apply w-full rounded-xl border border-border bg-background px-4 py-2 text-sm focus:ring-2 focus:ring-brand-500 transition;
+  }
+  
+  .label {
+    @apply block text-sm font-medium text-foreground mb-1;
+  }
+
 
   .btn-outline:hover {
     background-color: rgb(var(--muted));

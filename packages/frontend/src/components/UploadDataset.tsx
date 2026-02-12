@@ -26,14 +26,14 @@ export function UploadDataset({ onUploadComplete }: UploadDatasetProps) {
   const [error, setError] = useState<string | null>(null)
   const [progress, setProgress] = useState(0)
 
-  const handleFileChange = (e: ChangeEvent<HTMLInputElement>) => {
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files[0]) {
       setFile(e.target.files[0])
       setError(null)
     }
   }
 
-  const handleDrop = useCallback((e: DragEvent<HTMLDivElement>) => {
+  const handleDrop = useCallback((e: React.DragEvent<HTMLDivElement>) => {
     e.preventDefault()
     e.stopPropagation()
     if (e.dataTransfer.files && e.dataTransfer.files[0]) {
@@ -42,7 +42,7 @@ export function UploadDataset({ onUploadComplete }: UploadDatasetProps) {
     }
   }, [])
 
-  const handleDragOver = useCallback((e: DragEvent<HTMLDivElement>) => {
+  const handleDragOver = useCallback((e: React.DragEvent<HTMLDivElement>) => {
     e.preventDefault()
     e.stopPropagation()
   }, [])

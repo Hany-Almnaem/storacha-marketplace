@@ -529,8 +529,6 @@ contract DataMarketplaceTest is Test {
         assertEq(afterBal - beforeBal, expectedSeller, "Seller must receive correct 6-dec payout");
     }
 
-    
-
     /* ========== GETTERS & MISC ========== */
 
     function testGetters() public {
@@ -607,7 +605,7 @@ contract DataMarketplaceTest is Test {
         assertTrue(firstT > 0);
 
         // simulate many other buyers making tiny purchases
-        for (uint i = 0; i < 5; ++i) {
+        for (uint256 i = 0; i < 5; ++i) {
             address b = vm.addr(20 + i);
             mintAndApprove(b, 2e6);
             vm.startPrank(b);
@@ -665,7 +663,6 @@ contract DataMarketplaceTest is Test {
         vm.stopPrank();
     }
 
-
     function testFeeConfigsAndEdgeCases() public {
         // set fee to zero
         marketplace.setFee(0);
@@ -712,7 +709,7 @@ contract DataMarketplaceTest is Test {
         vm.startPrank(seller);
         uint256 N = 30; // moderate size to exercise loop without OOG in tests
         uint256[] memory ids = new uint256[](N);
-        for (uint i = 0; i < N; ++i) {
+        for (uint256 i = 0; i < N; ++i) {
             ids[i] = marketplace.createListing(
                 string(abi.encodePacked("L", vm.toString(i))),
                 "",
@@ -723,7 +720,7 @@ contract DataMarketplaceTest is Test {
         vm.stopPrank();
 
         // multiple buyers buy each listing
-        for (uint i = 0; i < N; ++i) {
+        for (uint256 i = 0; i < N; ++i) {
             address b = vm.addr(100 + i);
             mintAndApprove(b, 5e6);
             vm.startPrank(b);
@@ -740,7 +737,7 @@ contract DataMarketplaceTest is Test {
         vm.stopPrank();
 
         // all listing balances should be zero
-        for (uint i = 0; i < N; ++i) {
+        for (uint256 i = 0; i < N; ++i) {
             (uint256 a, ) = marketplace.getListingBalance(ids[i]);
             assertEq(a, 0);
         }

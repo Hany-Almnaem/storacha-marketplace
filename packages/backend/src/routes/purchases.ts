@@ -50,7 +50,7 @@ function buildBindKeyMessage(
   publicKey: string,
   timestamp: number
 ): string {
-  const encodedKey = Buffer.from(publicKey, 'utf8').toString('base64')
+  const encodedKey = publicKey
 
   return `I am the buyer of purchase ${purchaseId}.\nMy public key: ${encodedKey}\nTimestamp: ${timestamp}`
 }
@@ -219,7 +219,6 @@ router.get(
 
 router.post(
   '/:id/bind-key',
-  requireGeneralAuth,
   async (req: Request, res: Response, next: NextFunction) => {
     try {
       const parsed = BindKeyRequestSchema.safeParse(req.body)
@@ -238,15 +237,6 @@ router.post(
         return res.status(404).json({ error: 'Purchase not found' })
       }
 
-      const walletAddress = (req as AuthenticatedRequest).walletAddress
-      if (!walletAddress) {
-        return res.status(401).json({ error: 'Unauthorized' })
-      }
-
-      if (walletAddress !== purchase.buyerAddress.toLowerCase()) {
-        return res.status(401).json({ error: 'Unauthorized' })
-      }
-
       if (purchase.buyerPublicKey) {
         return res.status(400).json({ error: 'Public key already bound' })
       }
@@ -258,13 +248,14 @@ router.post(
       }
 
       const message = buildBindKeyMessage(purchase.id, publicKey, timestamp)
-      const isValid = await verifyMessage({
-        address: walletAddress as `0x${string}`,
+
+      const recovered = await verifyMessage({
+        address: purchase.buyerAddress as `0x${string}`,
         message,
         signature: signature as `0x${string}`,
       })
 
-      if (!isValid) {
+      if (!recovered) {
         return res.status(401).json({ error: 'Invalid signature' })
       }
 

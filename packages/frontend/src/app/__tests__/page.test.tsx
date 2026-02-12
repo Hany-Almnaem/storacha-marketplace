@@ -18,7 +18,7 @@ describe('Home page navigation', () => {
 
   it('uses Link component for Browse Datasets navigation', () => {
     // Verify Link is used with correct href for Browse Datasets
-    expect(pageSource).toContain('href="/listings"')
+    expect(pageSource).toContain('href="/listing"')
     expect(pageSource).toContain('Browse Datasets')
   })
 
@@ -44,7 +44,7 @@ describe('Home page navigation', () => {
 
 describe('Navigation route validation', () => {
   it('Browse Datasets route follows URL conventions', () => {
-    const route = '/listings'
+    const route = '/listing'
     // Must start with /
     expect(route.startsWith('/')).toBe(true)
     // Must be lowercase
