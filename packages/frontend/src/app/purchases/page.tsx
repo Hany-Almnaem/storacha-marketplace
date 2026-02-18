@@ -6,12 +6,13 @@ import {
   CheckCircle2,
   Clock,
   AlertCircle,
-  Download,
   Wallet,
   RefreshCw,
 } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { useAccount, useSignMessage } from 'wagmi'
+
+import { DownloadAccess } from '@/components/DownloadAccess'
 
 const API_URL = process.env['NEXT_PUBLIC_API_URL'] || 'http://localhost:3001'
 
@@ -182,15 +183,7 @@ export default function PurchasesPage() {
                 )}
 
                 {purchase.keyDelivered && (
-                  <button
-                    className="btn-primary inline-flex items-center gap-2 px-4 py-2 text-sm"
-                    onClick={() =>
-                      alert('Implement decrypt & download flow here.')
-                    }
-                  >
-                    <Download className="w-4 h-4" />
-                    Access
-                  </button>
+                  <DownloadAccess purchaseId={purchase.id} />
                 )}
               </div>
             </div>
