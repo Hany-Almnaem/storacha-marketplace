@@ -70,6 +70,7 @@ export default function BuyButton({ onchainId, priceUsdc }: BuyButtonProps) {
 
       const res = await fetch(`${API_URL}/api/purchases`, {
         headers: { Authorization: authHeader },
+        cache: 'no-store',
       })
 
       if (res.ok) {

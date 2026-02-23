@@ -231,6 +231,7 @@ export function KeyDeliveryPanel({
           `${API_URL}/api/purchases/pending-deliveries?${query.toString()}`,
           {
             headers: { Authorization: authHeader },
+            cache: 'no-store',
           }
         )
 

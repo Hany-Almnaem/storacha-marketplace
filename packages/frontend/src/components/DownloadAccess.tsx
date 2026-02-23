@@ -200,6 +200,7 @@ export function DownloadAccess({ purchaseId }: DownloadAccessProps) {
         `${API_URL}/api/purchases/${purchaseId}/access`,
         {
           headers: { Authorization: authHeader },
+          cache: 'no-store',
         }
       )
 

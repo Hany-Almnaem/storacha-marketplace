@@ -55,6 +55,7 @@ export default function PurchasesPage() {
 
       const res = await fetch(`${API_URL}/api/purchases`, {
         headers: { Authorization: authHeader },
+        cache: 'no-store',
       })
 
       if (!res.ok) throw new Error('Failed to fetch purchases')

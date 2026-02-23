@@ -21,6 +21,14 @@ import {
 
 const router: ExpressRouter = Router()
 
+router.use((req: Request, res: Response, next: NextFunction) => {
+  if (req.method === 'GET') {
+    res.set('Cache-Control', 'no-store')
+    res.append('Vary', 'Authorization')
+  }
+  next()
+})
+
 const MAX_AGE_MS = 5 * 60 * 1000
 
 function normalizeTimestampMs(timestamp: number): number | null {

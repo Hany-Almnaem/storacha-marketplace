@@ -322,7 +322,7 @@ export default function SellDashboardPage() {
 
       const res = await fetch(
         `${API_URL}/api/purchases/pending-deliveries?${query.toString()}`,
-        { headers: { Authorization: authHeader } }
+        { headers: { Authorization: authHeader }, cache: 'no-store' }
       )
 
       if (!res.ok) {
