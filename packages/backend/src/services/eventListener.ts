@@ -12,11 +12,11 @@ import prismaDB from '../config/db.js'
 import { notifySeller } from './notification.js'
 
 const POLL_INTERVAL_MS = 8_000
-const MAX_BLOCK_CHUNK = 2_000n
+export const MAX_BLOCK_CHUNK = 2_000n
 const MAX_RPC_RETRIES = 3
 const RPC_RETRY_BASE_MS = 1_000
 
-const PURCHASE_COMPLETED_EVENT = {
+export const PURCHASE_COMPLETED_EVENT = {
   type: 'event' as const,
   name: 'PurchaseCompleted' as const,
   inputs: [
@@ -30,11 +30,11 @@ const PURCHASE_COMPLETED_EVENT = {
 let pollingInterval: NodeJS.Timeout | null = null
 let polling = false
 
-function sleep(ms: number): Promise<void> {
+export function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms))
 }
 
-async function withRetry<T>(
+export async function withRetry<T>(
   fn: () => Promise<T>,
   label: string,
   maxRetries = MAX_RPC_RETRIES
@@ -63,7 +63,7 @@ async function withRetry<T>(
   throw new Error('unreachable')
 }
 
-async function processLog(log: any): Promise<void> {
+export async function processLog(log: any): Promise<void> {
   if (log.blockNumber == null || !log.transactionHash || log.logIndex == null) {
     console.warn('[listener] Skipping log with missing fields')
     return
