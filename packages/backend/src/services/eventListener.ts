@@ -11,113 +11,203 @@ import prismaDB from '../config/db.js'
 
 import { notifySeller } from './notification.js'
 
+const POLL_INTERVAL_MS = 8_000
+const MAX_BLOCK_CHUNK = 2_000n
+const MAX_RPC_RETRIES = 3
+const RPC_RETRY_BASE_MS = 1_000
+
+const PURCHASE_COMPLETED_EVENT = {
+  type: 'event' as const,
+  name: 'PurchaseCompleted' as const,
+  inputs: [
+    { indexed: true, name: 'listingId', type: 'uint256' as const },
+    { indexed: true, name: 'buyer', type: 'address' as const },
+    { indexed: true, name: 'seller', type: 'address' as const },
+    { indexed: false, name: 'amountUsdc', type: 'uint256' as const },
+  ],
+}
+
 let pollingInterval: NodeJS.Timeout | null = null
+let polling = false
 
-export async function startPurchaseListener() {
-  console.log('🔄 Starting PurchaseCompleted polling listener')
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms))
+}
 
-  pollingInterval = setInterval(async () => {
+async function withRetry<T>(
+  fn: () => Promise<T>,
+  label: string,
+  maxRetries = MAX_RPC_RETRIES
+): Promise<T> {
+  for (let attempt = 1; attempt <= maxRetries; attempt++) {
     try {
-      const latestBlock = await publicClient.getBlockNumber()
-      const confirmedBlock = latestBlock - BigInt(CONFIRMATIONS_REQUIRED)
+      return await fn()
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error)
 
-      const lastEvent = await prismaDB.eventLog.findFirst({
-        orderBy: { blockNumber: 'desc' },
-      })
+      if (attempt === maxRetries) {
+        console.error(
+          `[listener] ${label} failed after ${maxRetries} attempts: ${message}`
+        )
+        throw error
+      }
 
-      const fromBlock = lastEvent
-        ? BigInt(lastEvent.blockNumber) + 1n
-        : confirmedBlock - 5n // small safe window
+      const delayMs = RPC_RETRY_BASE_MS * attempt
+      console.warn(
+        `[listener] ${label} attempt ${attempt}/${maxRetries} failed, retrying in ${delayMs}ms: ${message}`
+      )
+      await sleep(delayMs)
+    }
+  }
 
-      if (fromBlock > confirmedBlock) return
+  throw new Error('unreachable')
+}
 
-      console.log(`🔎 Checking blocks ${fromBlock} → ${confirmedBlock}`)
+async function processLog(log: any): Promise<void> {
+  if (log.blockNumber == null || !log.transactionHash || log.logIndex == null) {
+    console.warn('[listener] Skipping log with missing fields')
+    return
+  }
 
-      const logs = await publicClient.getLogs({
-        address: MARKETPLACE_ADDRESS,
-        event: {
-          type: 'event',
-          name: 'PurchaseCompleted',
-          inputs: [
-            { indexed: true, name: 'listingId', type: 'uint256' },
-            { indexed: true, name: 'buyer', type: 'address' },
-            { indexed: true, name: 'seller', type: 'address' },
-            { indexed: false, name: 'amountUsdc', type: 'uint256' },
-          ],
-        },
-        fromBlock,
-        toBlock: confirmedBlock,
-      })
+  const blockNumber = Number(log.blockNumber)
+  const txHash: string = log.transactionHash
+  const logIndex: number = log.logIndex
 
-      if (!logs.length) return
+  const alreadyProcessed = await prismaDB.eventLog.findUnique({
+    where: {
+      txHash_logIndex: { txHash, logIndex },
+    },
+  })
 
-      console.log(`📦 Found ${logs.length} PurchaseCompleted events`)
+  if (alreadyProcessed) {
+    return
+  }
+
+  const decoded = decodeEventLog({
+    abi: MARKETPLACE_ABI,
+    data: log.data,
+    topics: log.topics,
+  })
+
+  const { listingId, buyer, seller, amountUsdc } = decoded.args as any
+
+  console.log(
+    `[listener] Processing purchase: listing=${listingId}, block=${blockNumber}, tx=${txHash}`
+  )
+
+  const purchase = await prismaDB.$transaction(async (tx: any) => {
+    const listing = await tx.listing.findUnique({
+      where: { onchainId: Number(listingId) },
+    })
+
+    if (!listing) throw new Error('LISTING_NOT_FOUND')
+
+    const created = await tx.purchase.upsert({
+      where: { txHash },
+      update: {},
+      create: {
+        listingId: listing.id,
+        buyerAddress: buyer,
+        txHash,
+        amountUsdc: amountUsdc.toString(),
+        txVerified: true,
+        blockNumber,
+      },
+    })
+
+    await tx.eventLog.create({
+      data: {
+        eventType: 'PurchaseCompleted',
+        txHash,
+        logIndex,
+        blockNumber,
+        processed: true,
+      },
+    })
+
+    return created
+  })
+
+  await notifySeller({
+    seller,
+    purchaseId: purchase.id,
+  })
+}
+
+export async function pollOnce(): Promise<void> {
+  if (polling) return
+  polling = true
+
+  try {
+    const latestBlock = await withRetry(
+      () => publicClient.getBlockNumber(),
+      'getBlockNumber'
+    )
+    const confirmedBlock = latestBlock - BigInt(CONFIRMATIONS_REQUIRED)
+
+    const lastEvent = await prismaDB.eventLog.findFirst({
+      orderBy: { blockNumber: 'desc' },
+    })
+
+    // Overlap: re-scan from lastEvent.blockNumber (not +1n) so that
+    // partially processed blocks are retried. The dedup check in
+    // processLog safely skips already-processed events.
+    const fromBlock = lastEvent
+      ? BigInt(lastEvent.blockNumber)
+      : confirmedBlock - 5n
+
+    if (fromBlock > confirmedBlock) return
+
+    let chunkStart = fromBlock
+
+    while (chunkStart <= confirmedBlock) {
+      const chunkEnd =
+        chunkStart + MAX_BLOCK_CHUNK - 1n < confirmedBlock
+          ? chunkStart + MAX_BLOCK_CHUNK - 1n
+          : confirmedBlock
+
+      console.log(`[listener] Scanning blocks ${chunkStart} → ${chunkEnd}`)
+
+      const logs = await withRetry(
+        () =>
+          publicClient.getLogs({
+            address: MARKETPLACE_ADDRESS,
+            event: PURCHASE_COMPLETED_EVENT,
+            fromBlock: chunkStart,
+            toBlock: chunkEnd,
+          }),
+        `getLogs(${chunkStart}-${chunkEnd})`
+      )
+
+      if (logs.length) {
+        console.log(
+          `[listener] Found ${logs.length} PurchaseCompleted events in chunk`
+        )
+      }
 
       for (const log of logs) {
-        const decoded = decodeEventLog({
-          abi: MARKETPLACE_ABI,
-          data: log.data,
-          topics: log.topics,
-        })
-
-        const { listingId, buyer, seller, amountUsdc } = decoded.args as any
-
-        console.log('📦 Processing purchase for listing:', listingId.toString())
-
-        const blockNumber = Number(log.blockNumber!)
-        const txHash = log.transactionHash!
-        const logIndex = log.logIndex!
-
-        const alreadyProcessed = await prismaDB.eventLog.findUnique({
-          where: {
-            txHash_logIndex: { txHash, logIndex },
-          },
-        })
-
-        if (alreadyProcessed) continue
-
-        const purchase = await prismaDB.$transaction(async (tx: any) => {
-          const listing = await tx.listing.findUnique({
-            where: { onchainId: Number(listingId) },
-          })
-
-          if (!listing) throw new Error('LISTING_NOT_FOUND')
-
-          const purchase = await tx.purchase.upsert({
-            where: { txHash },
-            update: {},
-            create: {
-              listingId: listing.id,
-              buyerAddress: buyer,
-              txHash,
-              amountUsdc: amountUsdc.toString(),
-              txVerified: true,
-              blockNumber,
-            },
-          })
-
-          await tx.eventLog.create({
-            data: {
-              eventType: 'PurchaseCompleted',
-              txHash,
-              logIndex,
-              blockNumber,
-              processed: true,
-            },
-          })
-
-          return purchase
-        })
-
-        await notifySeller({
-          seller,
-          purchaseId: purchase.id,
-        })
+        await processLog(log)
       }
-    } catch (error) {
-      console.error('❌ Polling error:', error)
+
+      chunkStart = chunkEnd + 1n
     }
-  }, 8000) // poll every 8 seconds
+  } finally {
+    polling = false
+  }
+}
+
+export function startPurchaseListener() {
+  console.log('[listener] Starting PurchaseCompleted polling listener')
+
+  pollOnce().catch((error) => {
+    console.error('[listener] Initial poll failed:', error)
+  })
+
+  pollingInterval = setInterval(() => {
+    pollOnce().catch((error) => {
+      console.error('[listener] Poll error:', error)
+    })
+  }, POLL_INTERVAL_MS)
 }
 
 export function stopPurchaseListener() {
