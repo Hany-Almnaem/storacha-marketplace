@@ -442,6 +442,9 @@ export default function SellDashboardPage() {
             <p className="text-sm text-muted-foreground mt-2">
               Manage key delivery and withdraw listing earnings.
             </p>
+            <p className="text-xs text-muted-foreground mt-1">
+              Recent on-chain purchases may take a few moments to appear.
+            </p>
           </div>
 
           <div className="flex items-center gap-2">
@@ -529,10 +532,14 @@ export default function SellDashboardPage() {
                         {pending} pending key deliver
                         {pending === 1 ? 'y' : 'ies'}
                       </span>
-                    ) : (
+                    ) : listing.salesCount > 0 ? (
                       <span className="inline-flex items-center gap-2 rounded-full bg-green-500/10 px-3 py-1 text-xs font-medium text-green-600">
                         <CheckCircle2 className="w-3.5 h-3.5" />
-                        No pending deliveries
+                        All keys delivered
+                      </span>
+                    ) : (
+                      <span className="text-xs text-muted-foreground">
+                        No sales yet
                       </span>
                     )}
                   </div>
@@ -546,6 +553,12 @@ export default function SellDashboardPage() {
                     <p className="text-lg font-semibold text-foreground">
                       {listing.salesCount}
                     </p>
+                    {listing.salesCount > 0 && (
+                      <p className="text-xs text-muted-foreground mt-1">
+                        {listing.salesCount - pending} delivered &middot;{' '}
+                        {pending} pending
+                      </p>
+                    )}
                   </div>
 
                   <div className="rounded-lg border border-border bg-card px-4 py-3">

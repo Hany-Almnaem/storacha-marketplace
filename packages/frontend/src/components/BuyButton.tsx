@@ -9,6 +9,7 @@ import { config } from '../config'
 import { usePurchaseAccess } from '@/hooks/usePurchaseAccess'
 import { useUsdcApproval } from '@/hooks/useUsdcApproval'
 import { getOrCreateBuyerKeypair } from '@/lib/buyerKeys'
+import { classifyRpcError, type ParsedRpcError } from '@/lib/rpcErrors'
 
 const API_URL = process.env['NEXT_PUBLIC_API_URL'] || 'http://localhost:3001'
 
@@ -42,7 +43,7 @@ export default function BuyButton({ onchainId, priceUsdc }: BuyButtonProps) {
   const { signMessageAsync } = useSignMessage()
 
   const [status, setStatus] = useState<Status>('idle')
-  const [error, setError] = useState<string | null>(null)
+  const [error, setError] = useState<ParsedRpcError | null>(null)
 
   const { approveIfNeeded } = useUsdcApproval(
     USDC_ADDRESS,
@@ -97,7 +98,12 @@ export default function BuyButton({ onchainId, priceUsdc }: BuyButtonProps) {
 
   const handleBuy = async () => {
     if (!address) {
-      setError('Please connect your wallet')
+      setError({
+        title: 'Wallet not connected',
+        detail: 'Please connect your wallet to make a purchase.',
+        suggestion: 'Click the wallet button in the navigation bar.',
+        retryable: true,
+      })
       return
     }
 
@@ -168,7 +174,7 @@ export default function BuyButton({ onchainId, priceUsdc }: BuyButtonProps) {
       setStatus('done')
     } catch (err) {
       console.error(err)
-      setError(err instanceof Error ? err.message : 'Purchase failed')
+      setError(classifyRpcError(err))
       setStatus('error')
     }
   }
@@ -201,8 +207,10 @@ export default function BuyButton({ onchainId, priceUsdc }: BuyButtonProps) {
       </button>
 
       {error && (
-        <div className="text-sm text-red-600 bg-red-50 border border-red-200 p-3 rounded-lg">
-          {error}
+        <div className="text-sm bg-red-50 border border-red-200 p-3 rounded-lg space-y-1">
+          <p className="font-semibold text-red-700">{error.title}</p>
+          <p className="text-red-600">{error.detail}</p>
+          <p className="text-red-500 text-xs">{error.suggestion}</p>
         </div>
       )}
     </div>
