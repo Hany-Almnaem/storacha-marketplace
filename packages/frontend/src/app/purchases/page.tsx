@@ -19,12 +19,20 @@ const API_URL = process.env['NEXT_PUBLIC_API_URL'] || 'http://localhost:3001'
 interface Purchase {
   id: string
   listing: {
+    id: string
     title: string
     category: string
+    sellerAddress: string
   }
+  txHash: string
   createdAt: string
   keyDelivered: boolean
   keyCid?: string | null
+}
+
+function shortValue(value: string, prefixLen = 6, suffixLen = 4): string {
+  if (value.length <= prefixLen + suffixLen + 3) return value
+  return `${value.slice(0, prefixLen)}...${value.slice(-suffixLen)}`
 }
 
 export default function PurchasesPage() {
@@ -61,7 +69,12 @@ export default function PurchasesPage() {
       if (!res.ok) throw new Error('Failed to fetch purchases')
 
       const json = await res.json()
-      setPurchases(json.purchases ?? [])
+      const rows: Purchase[] = json.purchases ?? []
+      rows.sort(
+        (a, b) =>
+          new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+      )
+      setPurchases(rows)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Unable to load purchases.')
     } finally {
@@ -167,6 +180,18 @@ export default function PurchasesPage() {
                 <p className="text-xs text-muted-foreground mt-2">
                   Purchased on {new Date(purchase.createdAt).toLocaleString()}
                 </p>
+
+                <div className="mt-1 flex flex-wrap gap-x-3 gap-y-1 text-xs text-muted-foreground font-mono">
+                  <span title={purchase.id}>ID: {shortValue(purchase.id)}</span>
+                  <span title={purchase.listing.sellerAddress}>
+                    Seller: {shortValue(purchase.listing.sellerAddress)}
+                  </span>
+                  {purchase.txHash && (
+                    <span title={purchase.txHash}>
+                      Tx: {shortValue(purchase.txHash, 6, 4)}
+                    </span>
+                  )}
+                </div>
               </div>
 
               {/* Right */}
