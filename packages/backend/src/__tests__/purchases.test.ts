@@ -170,6 +170,15 @@ describe('purchases API', () => {
       })
     })
 
+    it('sets no-cache headers', async () => {
+      const res = await request(app)
+        .get('/api/purchases')
+        .set('Authorization', buildAuthHeader(BUYER_ADDRESS))
+
+      expect(res.headers['cache-control']).toBe('no-store')
+      expect(res.headers['vary']).toContain('Authorization')
+    })
+
     it('applies cursor filter', async () => {
       await request(app)
         .get(`/api/purchases?cursor=${PURCHASE_ID}`)
@@ -546,6 +555,26 @@ describe('purchases API', () => {
       expect(res.body.keyCid).toBe(VALID_KEY_CID)
     })
 
+    it('sets no-cache headers', async () => {
+      mockPurchaseFindUnique.mockResolvedValue({
+        id: PURCHASE_ID,
+        buyerAddress: BUYER_ADDRESS.toLowerCase(),
+        keyDelivered: true,
+        keyCid: VALID_KEY_CID,
+        listing: {
+          dataCid: VALID_CID,
+          envelopeCid: VALID_ENVELOPE_CID,
+        },
+      })
+
+      const res = await request(app)
+        .get(`/api/purchases/${PURCHASE_ID}/access`)
+        .set('Authorization', buildAuthHeader(BUYER_ADDRESS))
+
+      expect(res.headers['cache-control']).toBe('no-store')
+      expect(res.headers['vary']).toContain('Authorization')
+    })
+
     it('returns 404 when purchase not found', async () => {
       mockPurchaseFindUnique.mockResolvedValueOnce(null)
 
@@ -645,6 +674,17 @@ describe('purchases API', () => {
       expect(res.status).toBe(400)
       expect(res.body.error).toBe('Validation failed')
       expect(Array.isArray(res.body.details)).toBe(true)
+    })
+
+    it('sets no-cache headers', async () => {
+      mockPurchaseFindMany.mockResolvedValue([basePendingPurchase])
+
+      const res = await request(app)
+        .get('/api/seller/pending-deliveries')
+        .set('Authorization', buildAuthHeader(SELLER_ADDRESS))
+
+      expect(res.headers['cache-control']).toBe('no-store')
+      expect(res.headers['vary']).toContain('Authorization')
     })
 
     it('includes listing metadata for seller delivery', async () => {

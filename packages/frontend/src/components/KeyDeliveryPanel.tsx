@@ -231,6 +231,7 @@ export function KeyDeliveryPanel({
           `${API_URL}/api/purchases/pending-deliveries?${query.toString()}`,
           {
             headers: { Authorization: authHeader },
+            cache: 'no-store',
           }
         )
 
@@ -606,7 +607,11 @@ export function KeyDeliveryPanel({
 
       {!loadingPending && pendingDeliveries.length === 0 && (
         <div className="rounded-lg border border-border bg-card px-3 py-4 text-sm text-muted-foreground">
-          No pending deliveries for this listing.
+          All buyer keys have been delivered for this listing.
+          <span className="block text-xs mt-1">
+            New purchases appear here after on-chain confirmation and buyer key
+            binding.
+          </span>
         </div>
       )}
 
