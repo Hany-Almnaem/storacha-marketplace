@@ -47,3 +47,6 @@ mnemonic.txt
 
 packages/contracts/typechain-types/
 *.tsbuildinfo
+
+# TypeScript incremental build artifacts
+*.tsbuildinfo
