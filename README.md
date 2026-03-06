@@ -158,18 +158,24 @@ pnpm --filter @marketplace/frontend typecheck
 
 Copy `.env.example` to `.env` and configure:
 
-| Variable                               | Description               |
-| -------------------------------------- | ------------------------- |
-| `DATABASE_URL`                         | PostgreSQL connection     |
-| `BACKEND_PORT`                         | Backend server port       |
-| `CORS_ORIGINS`                         | Allowed CORS origins      |
-| `BASE_SEPOLIA_RPC_URL`                 | Base Sepolia RPC endpoint |
-| `BASE_MAINNET_RPC_URL`                 | Base Mainnet RPC endpoint |
-| `NEXT_PUBLIC_API_URL`                  | Backend API URL           |
-| `NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID` | WalletConnect project ID  |
-| `NEXT_PUBLIC_CHAIN_ID`                 | Target chain ID           |
-| `MARKETPLACE_CONTRACT_ADDRESS`         | Deployed contract address |
-| `USDC_CONTRACT_ADDRESS`                | USDC token address        |
+| Variable                                   | Used By  | Description                                   |
+| ------------------------------------------ | -------- | --------------------------------------------- |
+| `DATABASE_URL`                             | Backend  | PostgreSQL connection string                  |
+| `BACKEND_PORT`                             | Backend  | Server port (default: 3001)                   |
+| `CORS_ORIGINS`                             | Backend  | Comma-separated allowed origins               |
+| `BASE_SEPOLIA_RPC_URL`                     | Backend  | Base Sepolia RPC endpoint                     |
+| `MARKETPLACE_CONTRACT_ADDRESS`             | Backend  | Deployed marketplace contract address         |
+| `USDC_CONTRACT_ADDRESS`                    | Backend  | USDC token contract address                   |
+| `NEXT_PUBLIC_API_URL`                      | Frontend | Backend API URL                               |
+| `NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID`     | Frontend | WalletConnect project ID                      |
+| `NEXT_PUBLIC_CHAIN_ID`                     | Frontend | Target chain ID (84532 for Sepolia)           |
+| `NEXT_PUBLIC_MARKETPLACE_CONTRACT_ADDRESS` | Frontend | Marketplace contract address (buy/sell flows) |
+| `NEXT_PUBLIC_USDC_ADDRESS`                 | Frontend | USDC contract address (approval + purchase)   |
+
+> **Note:** The backend and frontend use separate env var names for the same
+> contract addresses. `MARKETPLACE_CONTRACT_ADDRESS` is read by the backend
+> indexer. `NEXT_PUBLIC_MARKETPLACE_CONTRACT_ADDRESS` is read by the frontend
+> wallet interactions. Both must point to the same deployed contract.
 
 ## Database
 
@@ -207,6 +213,54 @@ Deploy to Railway, Render, or Fly.io with PostgreSQL.
 ### Frontend
 
 Deploy to Vercel with environment variables configured.
+
+## Testing
+
+CI runs backend and frontend unit tests on every PR to `master`.
+
+```bash
+pnpm --filter @marketplace/backend test      # backend unit tests
+pnpm --filter @marketplace/frontend test:unit # frontend unit tests
+pnpm --filter @marketplace/contracts test     # contract tests (requires Foundry)
+```
+
+### What runs in CI
+
+| Suite               | Runner                 | Runs in CI                         |
+| ------------------- | ---------------------- | ---------------------------------- |
+| Backend unit tests  | Vitest                 | Yes                                |
+| Frontend unit tests | Vitest                 | Yes                                |
+| Contract tests      | Foundry (`forge test`) | No — requires Foundry, run locally |
+
+### Tests that require a database
+
+`integration.test.ts` and `seed.test.ts` require a running PostgreSQL instance.
+`integration.test.ts` is fully guarded by
+`describe.skipIf(!process.env['DATABASE_URL'])`. `seed.test.ts` runs validation
+tests always, and only its integration block is guarded with
+`{ skip: !process.env['DATABASE_URL'] }`. In CI, `DATABASE_URL` is intentionally
+unset for backend tests, so only database-dependent blocks skip.
+
+To run them locally:
+
+```bash
+docker compose up -d                          # start PostgreSQL
+pnpm --filter @marketplace/backend test       # all tests including integration
+```
+
+### Quarantined tests
+
+A small number of tests are temporarily skipped with `it.skip` and a
+`QUARANTINED` comment explaining the root cause. Search the test files for
+`QUARANTINED` to find them. Each quarantined test names the issue that will
+repair it.
+
+Current quarantines:
+
+- `listings.test.ts` — 1 test: stale assertion on `onchainId` visibility
+  (tracked for BETA-02)
+- `purchases.test.ts` — 4 tests: `verifyMessage` mock drift in bind-key and key
+  delivery paths
 
 ## Security
 

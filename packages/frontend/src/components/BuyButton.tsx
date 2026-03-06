@@ -4,12 +4,12 @@ import { useState } from 'react'
 import { useAccount, useSignMessage } from 'wagmi'
 import { waitForTransactionReceipt } from 'wagmi/actions'
 
-import { config } from '../config'
-
 import { usePurchaseAccess } from '@/hooks/usePurchaseAccess'
 import { useUsdcApproval } from '@/hooks/useUsdcApproval'
 import { getOrCreateBuyerKeypair } from '@/lib/buyerKeys'
 import { classifyRpcError, type ParsedRpcError } from '@/lib/rpcErrors'
+
+import { config } from '../config'
 
 const API_URL = process.env['NEXT_PUBLIC_API_URL'] || 'http://localhost:3001'
 

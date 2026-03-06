@@ -11,9 +11,10 @@ packages/contracts/out/
 packages/contracts/broadcast/
 packages/contracts/lib/
 
+# Environment files — catch all variants (.env, .env.local, .env.production, etc.)
 .env
-.env.local
-.env.*.local
+.env.*
+!.env.example
 
 .idea/
 .vscode/*
@@ -41,9 +42,16 @@ packages/backend/prisma/*.db-journal
 
 *.pem
 *.key
+*.p12
+*.pfx
 private-key.txt
 mnemonic.txt
 .secret
+credentials.json
+service-account*.json
 
 packages/contracts/typechain-types/
+*.tsbuildinfo
+
+# TypeScript incremental build artifacts
 *.tsbuildinfo

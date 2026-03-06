@@ -31,6 +31,12 @@ const nextConfig = {
 
   // Webpack config for Web3 compatibility
   webpack: (config) => {
+    config.resolve.alias = {
+      ...(config.resolve.alias || {}),
+      '@react-native-async-storage/async-storage': false,
+      'pino-pretty': false,
+    }
+
     config.resolve.fallback = {
       ...config.resolve.fallback,
       fs: false,
