@@ -50,6 +50,11 @@ jobs:
 
       - run: pnpm install --frozen-lockfile
 
+      - name: Generate Prisma client
+        run: pnpm --filter @marketplace/backend db:generate
+        env:
+          DATABASE_URL: postgresql://test:test@localhost:5432/test
+
       - name: Backend typecheck
         run: pnpm --filter @marketplace/backend typecheck
 
@@ -72,6 +77,11 @@ jobs:
           cache: pnpm
 
       - run: pnpm install --frozen-lockfile
+
+      - name: Generate Prisma client
+        run: pnpm --filter @marketplace/backend db:generate
+        env:
+          DATABASE_URL: postgresql://test:test@localhost:5432/test
 
       - name: Build frontend
         run: pnpm --filter @marketplace/frontend build
