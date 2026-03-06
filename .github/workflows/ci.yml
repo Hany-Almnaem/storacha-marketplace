@@ -2,9 +2,9 @@ name: CI
 
 on:
   push:
-    branches: [main]
+    branches: [master]
   pull_request:
-    branches: [main]
+    branches: [master]
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -31,8 +31,11 @@ jobs:
       - name: Check formatting
         run: pnpm format:check
 
-      - name: Lint
-        run: pnpm lint
+      - name: Lint backend
+        run: pnpm --filter @marketplace/backend lint
+
+      - name: Lint frontend
+        run: pnpm --filter @marketplace/frontend lint
 
   typecheck:
     name: Type Check
@@ -54,8 +57,10 @@ jobs:
       - name: Backend typecheck
         run: pnpm --filter @marketplace/backend typecheck
 
-      - name: Frontend typecheck
-        run: pnpm --filter @marketplace/frontend typecheck
+      - name: Frontend typecheck (clean-checkout safe)
+        run: |
+          rm -f packages/frontend/tsconfig.tsbuildinfo
+          pnpm --filter @marketplace/frontend typecheck
 
   build:
     name: Build
@@ -79,6 +84,40 @@ jobs:
 
       - name: Build backend
         run: pnpm --filter @marketplace/backend build
+
+  test:
+    name: Test (unit only — no database)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+
+      # Prisma client generation needs a DATABASE_URL to parse the schema,
+      # but the URL does not need to be reachable.
+      - name: Generate Prisma client
+        run: pnpm --filter @marketplace/backend db:generate
+        env:
+          DATABASE_URL: postgresql://test:test@localhost:5432/test
+
+      # DATABASE_URL is intentionally unset so DB-dependent test suites
+      # (integration.test.ts, seed.test.ts) auto-skip via describe.skipIf.
+      - name: Backend tests
+        run: pnpm --filter @marketplace/backend test
+        env:
+          DATABASE_URL: ''
+
+      - name: Frontend tests
+        run: pnpm --filter @marketplace/frontend test:unit
 
   prisma:
     name: Prisma Validate
