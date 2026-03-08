@@ -1,4 +1,4 @@
-import { Prisma } from '@prisma/client'
+import type { Prisma } from '@prisma/client'
 import {
   Router,
   type NextFunction,
@@ -6,13 +6,13 @@ import {
   type Response,
   type Router as ExpressRouter,
 } from 'express'
+import { formatUnits } from 'viem'
+
+import { verifyListingCreation } from '@/services/listingVerification.js'
+import { ListingVerificationError } from '@/types/listingVerification.js'
 
 import { prisma } from '../config/db.js'
-import {
-  AddressSchema,
-  CreateListingSchema,
-  ListingQuerySchema,
-} from '../lib/validation.js'
+import { CreateListingSchema, ListingQuerySchema } from '../lib/validation.js'
 import {
   optionalAuth,
   requireAuth,
@@ -20,10 +20,6 @@ import {
 } from '../middleware/auth.js'
 
 const router: ExpressRouter = Router()
-
-const CreateListingRequestSchema = CreateListingSchema.extend({
-  sellerAddress: AddressSchema,
-})
 
 function buildPriceFilter(minPrice?: string, maxPrice?: string) {
   const filter: { gte?: string; lte?: string } = {}
@@ -105,7 +101,7 @@ router.get('/', async (req: Request, res: Response, next: NextFunction) => {
       title: listing.title,
       description: listing.description,
       category: listing.category,
-      priceUsdc: listing.priceUsdc.toString(),
+      priceUsdc: formatUnits(BigInt(listing.priceUsdc.toString()), 6),
       dataCid: listing.dataCid,
       sellerAddress: listing.sellerAddress,
       salesCount: listing._count.purchases,
@@ -148,7 +144,7 @@ router.get(
         title: listing.title,
         description: listing.description,
         category: listing.category,
-        priceUsdc: listing.priceUsdc.toString(),
+        priceUsdc: formatUnits(BigInt(listing.priceUsdc.toString()), 6),
         active: listing.active,
         origFilename: listing.origFilename,
         contentType: listing.contentType,
@@ -196,45 +192,43 @@ router.post(
   requireAuth,
   async (req: Request, res: Response, next: NextFunction) => {
     try {
-      const parsed = CreateListingRequestSchema.safeParse(req.body)
-      if (!parsed.success) {
-        return res.status(400).json({
-          error: 'Validation failed',
-          details: parsed.error.issues,
-        })
-      }
+      const parsed = CreateListingSchema.parse(req.body)
 
-      const walletAddress = (req as AuthenticatedRequest).walletAddress
-      const sellerAddress = parsed.data.sellerAddress.toLowerCase()
+      const verification = await verifyListingCreation({
+        txHash: parsed.txHash as `0x${string}`,
+        dataCid: parsed.dataCid,
+        envelopeCid: parsed.envelopeCid,
+        envelopeHash: parsed.envelopeHash,
+        priceUsdc: parsed.priceUsdc,
+      })
 
-      if (!walletAddress || walletAddress !== sellerAddress) {
-        return res
-          .status(401)
-          .json({ error: 'Signature does not match seller' })
-      }
-
-      const { sellerAddress: _seller, ...listingData } = parsed.data
-
-      const created = await prisma.listing.create({
+      const listing = await prisma.listing.create({
         data: {
-          ...listingData,
-          sellerAddress,
+          onchainId: verification.onchainId,
+          sellerAddress: verification.sellerAddress.toLowerCase(),
+
+          dataCid: verification.dataCid,
+          envelopeCid: verification.envelopeCid,
+          envelopeHash: verification.envelopeHash,
+
+          title: parsed.title,
+          description: parsed.description,
+          category: parsed.category,
+
+          priceUsdc: verification.priceUsdc,
         },
       })
 
-      res.status(201).json({
-        id: created.id,
-        message: 'Listing created successfully',
-      })
-    } catch (error) {
-      if (
-        error instanceof Prisma.PrismaClientKnownRequestError &&
-        error.code === 'P2002'
-      ) {
-        return res.status(409).json({ error: 'Listing already exists' })
+      res.json({ data: listing })
+    } catch (err) {
+      if (err instanceof ListingVerificationError) {
+        return res.status(400).json({
+          error: err.code,
+          message: err.message,
+        })
       }
 
-      next(error)
+      next(err)
     }
   }
 )

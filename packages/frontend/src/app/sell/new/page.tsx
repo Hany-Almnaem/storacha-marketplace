@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { parseUnits, decodeEventLog } from 'viem'
+import { parseUnits } from 'viem'
 import {
   useWriteContract,
   useWaitForTransactionReceipt,
@@ -162,28 +162,6 @@ export default function NewListingPage() {
       if (isConfirmed && receipt && uploadResult && address && !savingBackend) {
         setSavingBackend(true)
         try {
-          let listingId: number | null = null
-
-          for (const log of receipt.logs) {
-            try {
-              const decoded = decodeEventLog({
-                abi: MARKETPLACE_ABI,
-                data: log.data,
-                topics: log.topics,
-              })
-              if (decoded.eventName === 'ListingCreated') {
-                listingId = Number(decoded.args.listingId)
-                break
-              }
-            } catch {
-              console.log('Error')
-            }
-          }
-
-          if (listingId === null) {
-            throw new Error('Could not find ListingCreated event')
-          }
-
           const timestamp = Math.floor(Date.now() / 1000).toString()
           const message = `Create listing on Data Marketplace\nTimestamp: ${timestamp}`
           const signature = await signMessageAsync({ message })
@@ -196,17 +174,16 @@ export default function NewListingPage() {
               Authorization: authHeader,
             },
             body: JSON.stringify({
-              onchainId: listingId,
+              txHash: hash,
               dataCid: uploadResult.dataCid,
               envelopeCid: uploadResult.envelopeCid,
               envelopeHash: uploadResult.envelopeHash,
               title,
               description,
               category,
-              priceUsdc: price,
+              priceUsdc: parseUnits(price, 6).toString(),
               origFilename: uploadResult.fileName,
               contentType: 'application/octet-stream',
-              sellerAddress: address,
             }),
           })
 

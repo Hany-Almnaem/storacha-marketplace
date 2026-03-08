@@ -90,7 +90,7 @@ export const CategorySchema = z.enum([
  * Used by POST /listings endpoint
  */
 export const CreateListingSchema = z.object({
-  onchainId: z.number().int().positive('Listing ID must be positive'),
+  txHash: TxHashSchema,
   dataCid: CidSchema,
   envelopeCid: CidSchema,
   envelopeHash: Bytes32Schema,
@@ -98,6 +98,7 @@ export const CreateListingSchema = z.object({
     .string()
     .min(3, 'Title must be at least 3 characters')
     .max(100, 'Title must be at most 100 characters'),
+
   description: z
     .string()
     .min(10, 'Description must be at least 10 characters')
