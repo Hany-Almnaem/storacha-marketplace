@@ -216,6 +216,10 @@ router.post(
           category: parsed.category,
 
           priceUsdc: verification.priceUsdc,
+
+          origFilename: parsed.origFilename ?? null,
+          contentType: parsed.contentType ?? null,
+          txHash: parsed.txHash,
         },
       })
 

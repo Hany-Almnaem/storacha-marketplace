@@ -1,8 +1,7 @@
 import { parseEventLogs, decodeEventLog } from 'viem'
 
-import { MARKETPLACE_ABI } from '@/config/chain'
+import { MARKETPLACE_ABI, publicClient } from '@/config/chain'
 
-import { publicClient } from '../config/chain'
 import type {
   ListingVerificationInput,
   VerifiedListingData,

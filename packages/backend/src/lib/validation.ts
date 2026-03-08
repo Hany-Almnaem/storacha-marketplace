@@ -68,7 +68,7 @@ export const Bytes32Schema = z
  */
 export const UsdcAmountSchema = z
   .string()
-  .regex(usdcAmountRegex, 'Invalid USDC amount')
+  .regex(/^\d+$/, 'Invalid USDC amount (must be raw USDC units)')
 
 /**
  * Listing category enum
