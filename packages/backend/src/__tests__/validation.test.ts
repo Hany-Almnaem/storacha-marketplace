@@ -179,14 +179,14 @@ describe('Base Schemas', () => {
 
 describe('CreateListingSchema', () => {
   const validListing = {
-    onchainId: 1,
+    txHash: VALID_TX_HASH,
     dataCid: VALID_CID,
     envelopeCid: VALID_CID,
     envelopeHash: VALID_BYTES32,
     title: 'Test Dataset',
     description: 'This is a test dataset for the marketplace',
     category: 'AI/ML',
-    priceUsdc: '10.00',
+    priceUsdc: '10000000', // raw USDC units (10 USDC)
   }
 
   it('should accept valid listing data', () => {
@@ -203,10 +203,17 @@ describe('CreateListingSchema', () => {
     expect(result.success).toBe(true)
   })
 
-  it('should reject negative onchainId', () => {
+  it('should reject missing txHash', () => {
+    const { txHash, ...withoutHash } = validListing
+
+    const result = CreateListingSchema.safeParse(withoutHash)
+    expect(result.success).toBe(false)
+  })
+
+  it('should reject invalid txHash', () => {
     const result = CreateListingSchema.safeParse({
       ...validListing,
-      onchainId: -1,
+      txHash: 'invalid',
     })
     expect(result.success).toBe(false)
   })
@@ -307,7 +314,7 @@ describe('CreatePurchaseSchema', () => {
       listingId: 'clh1234567890abcdef12345',
       buyerAddress: VALID_ADDRESS,
       txHash: VALID_TX_HASH,
-      amountUsdc: '10.00',
+      amountUsdc: '10000000',
     })
     expect(result.success).toBe(true)
   })
@@ -317,7 +324,7 @@ describe('CreatePurchaseSchema', () => {
       listingId: 'clh1234567890abcdef12345',
       buyerAddress: VALID_ADDRESS,
       txHash: VALID_TX_HASH,
-      amountUsdc: '10.00',
+      amountUsdc: '10000000',
       blockNumber: 12345678,
     })
     expect(result.success).toBe(true)

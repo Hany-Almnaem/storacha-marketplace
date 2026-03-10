@@ -1,4 +1,4 @@
-import type { Prisma } from '@prisma/client'
+import { Prisma } from '@prisma/client'
 import {
   Router,
   type NextFunction,
@@ -192,14 +192,20 @@ router.post(
   requireAuth,
   async (req: Request, res: Response, next: NextFunction) => {
     try {
-      const parsed = CreateListingSchema.parse(req.body)
+      const parsed = CreateListingSchema.safeParse(req.body)
+      if (!parsed.success) {
+        return res.status(400).json({
+          error: 'Validation failed',
+          details: parsed.error.issues,
+        })
+      }
 
       const verification = await verifyListingCreation({
-        txHash: parsed.txHash as `0x${string}`,
-        dataCid: parsed.dataCid,
-        envelopeCid: parsed.envelopeCid,
-        envelopeHash: parsed.envelopeHash,
-        priceUsdc: parsed.priceUsdc,
+        txHash: parsed.data.txHash as `0x${string}`,
+        dataCid: parsed.data.dataCid,
+        envelopeCid: parsed.data.envelopeCid,
+        envelopeHash: parsed.data.envelopeHash,
+        priceUsdc: parsed.data.priceUsdc,
       })
 
       const listing = await prisma.listing.create({
@@ -211,15 +217,15 @@ router.post(
           envelopeCid: verification.envelopeCid,
           envelopeHash: verification.envelopeHash,
 
-          title: parsed.title,
-          description: parsed.description,
-          category: parsed.category,
+          title: parsed.data.title,
+          description: parsed.data.description,
+          category: parsed.data.category,
 
           priceUsdc: verification.priceUsdc,
 
-          origFilename: parsed.origFilename ?? null,
-          contentType: parsed.contentType ?? null,
-          txHash: parsed.txHash,
+          origFilename: parsed.data.origFilename ?? null,
+          contentType: parsed.data.contentType ?? null,
+          txHash: parsed.data.txHash,
         },
       })
 
@@ -230,6 +236,13 @@ router.post(
           error: err.code,
           message: err.message,
         })
+      }
+
+      if (
+        err instanceof Prisma.PrismaClientKnownRequestError &&
+        err.code === 'P2002'
+      ) {
+        return res.status(409).json({ error: 'Listing already exists' })
       }
 
       next(err)
