@@ -1,28 +1,22 @@
-import { parseEventLogs, decodeEventLog } from 'viem'
+import { parseEventLogs } from 'viem'
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 
-vi.mock('@/config/chain', () => ({
+vi.mock('../config/chain', () => ({
   publicClient: {
     getTransactionReceipt: vi.fn(),
+    getTransactionConfirmations: vi.fn(),
   },
   MARKETPLACE_ABI: [],
+  MARKETPLACE_ADDRESS: '0xmarketplace',
 }))
 
 vi.mock('viem', () => ({
   parseEventLogs: vi.fn(),
-  decodeEventLog: vi.fn(),
 }))
 
-import { publicClient } from '@/config/chain'
-
+import { publicClient } from '../config/chain'
 import { verifyListingCreation } from '../services/listingVerification'
 import { ListingVerificationError } from '../types/listingVerification'
-
-const mockReceipt = {
-  status: 'success',
-  blockNumber: 123n,
-  logs: [{}],
-}
 
 const VALID_INPUT = {
   txHash: '0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef',
@@ -33,16 +27,19 @@ const VALID_INPUT = {
   priceUsdc: '10000000',
 }
 
-const decodedEvent = {
-  eventName: 'ListingCreated',
-  args: {
-    listingId: 1n,
-    seller: '0x1111111111111111111111111111111111111111',
-    dataCid: VALID_INPUT.dataCid,
-    envelopeCid: VALID_INPUT.envelopeCid,
-    envelopeHash: VALID_INPUT.envelopeHash,
-    priceUsdc: 10000000n,
-  },
+const mockReceipt = {
+  status: 'success',
+  blockNumber: 100n,
+  logs: [{}],
+}
+
+const validArgs = {
+  listingId: 1n,
+  seller: '0x1111111111111111111111111111111111111111',
+  dataCid: VALID_INPUT.dataCid,
+  envelopeCid: VALID_INPUT.envelopeCid,
+  envelopeHash: VALID_INPUT.envelopeHash,
+  priceUsdc: 10000000n,
 }
 
 beforeEach(() => {
@@ -53,32 +50,65 @@ describe('verifyListingCreation', () => {
   it('throws TX_NOT_FOUND if receipt missing', async () => {
     vi.mocked(publicClient.getTransactionReceipt).mockResolvedValue(null)
 
-    await expect(verifyListingCreation(VALID_INPUT)).rejects.toThrow(
-      ListingVerificationError
-    )
+    await expect(verifyListingCreation(VALID_INPUT)).rejects.toMatchObject({
+      code: 'TX_NOT_FOUND',
+    })
   })
 
-  it('throws TX_FAILED if tx reverted', async () => {
+  it('throws TX_FAILED if transaction reverted', async () => {
     vi.mocked(publicClient.getTransactionReceipt).mockResolvedValue({
       ...mockReceipt,
       status: 'reverted',
     } as any)
 
-    await expect(verifyListingCreation(VALID_INPUT)).rejects.toThrow(
-      'Transaction execution failed'
-    )
+    await expect(verifyListingCreation(VALID_INPUT)).rejects.toMatchObject({
+      code: 'TX_FAILED',
+    })
   })
 
-  it('throws EVENT_NOT_FOUND', async () => {
+  it('throws TX_NOT_CONFIRMED when confirmations are insufficient', async () => {
     vi.mocked(publicClient.getTransactionReceipt).mockResolvedValue(
       mockReceipt as any
     )
 
+    vi.mocked(publicClient.getTransactionConfirmations).mockResolvedValue(1)
+
+    await expect(verifyListingCreation(VALID_INPUT)).rejects.toMatchObject({
+      code: 'TX_NOT_CONFIRMED',
+    })
+  })
+
+  it('throws EVENT_NOT_FOUND when event missing', async () => {
+    vi.mocked(publicClient.getTransactionReceipt).mockResolvedValue(
+      mockReceipt as any
+    )
+
+    vi.mocked(publicClient.getTransactionConfirmations).mockResolvedValue(3)
+
     vi.mocked(parseEventLogs).mockReturnValue([] as any)
 
-    await expect(verifyListingCreation(VALID_INPUT)).rejects.toThrow(
-      'ListingCreated event not found'
+    await expect(verifyListingCreation(VALID_INPUT)).rejects.toMatchObject({
+      code: 'EVENT_NOT_FOUND',
+    })
+  })
+
+  it('rejects event emitted from non-marketplace contract', async () => {
+    vi.mocked(publicClient.getTransactionReceipt).mockResolvedValue(
+      mockReceipt as any
     )
+
+    vi.mocked(publicClient.getTransactionConfirmations).mockResolvedValue(3)
+
+    vi.mocked(parseEventLogs).mockReturnValue([
+      {
+        address: '0xBADCONTRACT',
+        args: validArgs,
+      },
+    ] as any)
+
+    await expect(verifyListingCreation(VALID_INPUT)).rejects.toMatchObject({
+      code: 'INVALID_EVENT_SOURCE',
+    })
   })
 
   it('throws DATA_CID_MISMATCH', async () => {
@@ -86,18 +116,18 @@ describe('verifyListingCreation', () => {
       mockReceipt as any
     )
 
+    vi.mocked(publicClient.getTransactionConfirmations).mockResolvedValue(3)
+
     vi.mocked(parseEventLogs).mockReturnValue([
-      { data: '0x', topics: [] },
+      {
+        address: '0xmarketplace',
+        args: { ...validArgs, dataCid: 'wrong' },
+      },
     ] as any)
 
-    vi.mocked(decodeEventLog).mockReturnValue({
-      ...decodedEvent,
-      args: { ...decodedEvent.args, dataCid: 'wrong' },
-    } as any)
-
-    await expect(verifyListingCreation(VALID_INPUT)).rejects.toThrow(
-      'dataCid does not match blockchain'
-    )
+    await expect(verifyListingCreation(VALID_INPUT)).rejects.toMatchObject({
+      code: 'DATA_CID_MISMATCH',
+    })
   })
 
   it('throws ENVELOPE_CID_MISMATCH', async () => {
@@ -105,18 +135,18 @@ describe('verifyListingCreation', () => {
       mockReceipt as any
     )
 
+    vi.mocked(publicClient.getTransactionConfirmations).mockResolvedValue(3)
+
     vi.mocked(parseEventLogs).mockReturnValue([
-      { data: '0x', topics: [] },
+      {
+        address: '0xmarketplace',
+        args: { ...validArgs, envelopeCid: 'wrong' },
+      },
     ] as any)
 
-    vi.mocked(decodeEventLog).mockReturnValue({
-      ...decodedEvent,
-      args: { ...decodedEvent.args, envelopeCid: 'wrong' },
-    } as any)
-
-    await expect(verifyListingCreation(VALID_INPUT)).rejects.toThrow(
-      'envelopeCid mismatch'
-    )
+    await expect(verifyListingCreation(VALID_INPUT)).rejects.toMatchObject({
+      code: 'ENVELOPE_CID_MISMATCH',
+    })
   })
 
   it('throws ENVELOPE_HASH_MISMATCH', async () => {
@@ -124,18 +154,18 @@ describe('verifyListingCreation', () => {
       mockReceipt as any
     )
 
+    vi.mocked(publicClient.getTransactionConfirmations).mockResolvedValue(3)
+
     vi.mocked(parseEventLogs).mockReturnValue([
-      { data: '0x', topics: [] },
+      {
+        address: '0xmarketplace',
+        args: { ...validArgs, envelopeHash: '0xdead' },
+      },
     ] as any)
 
-    vi.mocked(decodeEventLog).mockReturnValue({
-      ...decodedEvent,
-      args: { ...decodedEvent.args, envelopeHash: '0xdead' },
-    } as any)
-
-    await expect(verifyListingCreation(VALID_INPUT)).rejects.toThrow(
-      'envelopeHash mismatch'
-    )
+    await expect(verifyListingCreation(VALID_INPUT)).rejects.toMatchObject({
+      code: 'ENVELOPE_HASH_MISMATCH',
+    })
   })
 
   it('throws PRICE_MISMATCH', async () => {
@@ -143,35 +173,39 @@ describe('verifyListingCreation', () => {
       mockReceipt as any
     )
 
+    vi.mocked(publicClient.getTransactionConfirmations).mockResolvedValue(3)
+
     vi.mocked(parseEventLogs).mockReturnValue([
-      { data: '0x', topics: [] },
+      {
+        address: '0xmarketplace',
+        args: { ...validArgs, priceUsdc: 1n },
+      },
     ] as any)
 
-    vi.mocked(decodeEventLog).mockReturnValue({
-      ...decodedEvent,
-      args: { ...decodedEvent.args, priceUsdc: 1n },
-    } as any)
-
-    await expect(verifyListingCreation(VALID_INPUT)).rejects.toThrow(
-      'price mismatch'
-    )
+    await expect(verifyListingCreation(VALID_INPUT)).rejects.toMatchObject({
+      code: 'PRICE_MISMATCH',
+    })
   })
 
-  it('returns verified listing data', async () => {
+  it('returns verified listing data when valid', async () => {
     vi.mocked(publicClient.getTransactionReceipt).mockResolvedValue(
       mockReceipt as any
     )
 
-    vi.mocked(parseEventLogs).mockReturnValue([
-      { data: '0x', topics: [] },
-    ] as any)
+    vi.mocked(publicClient.getTransactionConfirmations).mockResolvedValue(3)
 
-    vi.mocked(decodeEventLog).mockReturnValue(decodedEvent as any)
+    vi.mocked(parseEventLogs).mockReturnValue([
+      {
+        address: '0xmarketplace',
+        args: validArgs,
+      },
+    ] as any)
 
     const result = await verifyListingCreation(VALID_INPUT)
 
     expect(result.onchainId).toBe(1)
     expect(result.priceUsdc).toBe('10000000')
-    expect(result.blockNumber).toBe(123)
+    expect(result.blockNumber).toBe(100)
+    expect(result.sellerAddress).toBe(validArgs.seller)
   })
 })

@@ -1,6 +1,10 @@
-import { parseEventLogs, decodeEventLog } from 'viem'
+import { parseEventLogs } from 'viem'
 
-import { MARKETPLACE_ABI, publicClient } from '@/config/chain'
+import {
+  MARKETPLACE_ABI,
+  MARKETPLACE_ADDRESS,
+  publicClient,
+} from '@/config/chain'
 
 import type {
   ListingVerificationInput,
@@ -8,12 +12,23 @@ import type {
 } from '../types/listingVerification'
 import { ListingVerificationError } from '../types/listingVerification'
 
+const CONFIRMATIONS_REQUIRED = 2
+
 export async function verifyListingCreation(
   input: ListingVerificationInput
 ): Promise<VerifiedListingData> {
   const { txHash, dataCid, envelopeCid, envelopeHash, priceUsdc } = input
 
-  const receipt = await publicClient.getTransactionReceipt({ hash: txHash })
+  let receipt
+
+  try {
+    receipt = await publicClient.getTransactionReceipt({ hash: txHash })
+  } catch {
+    throw new ListingVerificationError(
+      'TX_NOT_FOUND',
+      'Transaction not found or RPC failure'
+    )
+  }
 
   if (!receipt) {
     throw new ListingVerificationError('TX_NOT_FOUND', 'Transaction not found')
@@ -23,6 +38,17 @@ export async function verifyListingCreation(
     throw new ListingVerificationError(
       'TX_FAILED',
       'Transaction execution failed'
+    )
+  }
+
+  const confirmations = await publicClient.getTransactionConfirmations({
+    hash: txHash,
+  })
+
+  if (confirmations < CONFIRMATIONS_REQUIRED) {
+    throw new ListingVerificationError(
+      'TX_NOT_CONFIRMED',
+      `Transaction requires ${CONFIRMATIONS_REQUIRED} confirmations`
     )
   }
 
@@ -41,17 +67,20 @@ export async function verifyListingCreation(
     )
   }
 
-  const decoded = decodeEventLog({
-    abi: MARKETPLACE_ABI,
-    data: log.data,
-    topics: log.topics,
-  })
-
-  if (decoded.eventName !== 'ListingCreated') {
+  if (log.address.toLowerCase() !== MARKETPLACE_ADDRESS.toLowerCase()) {
     throw new ListingVerificationError(
-      'EVENT_NOT_FOUND',
-      'ListingCreated event not found'
+      'INVALID_EVENT_SOURCE',
+      'Event emitted from unexpected contract'
     )
+  }
+
+  const args = (log as any).args as {
+    listingId: bigint
+    seller: `0x${string}`
+    dataCid: string
+    envelopeCid: string
+    envelopeHash: `0x${string}`
+    priceUsdc: bigint
   }
 
   const {
@@ -61,14 +90,7 @@ export async function verifyListingCreation(
     envelopeCid: chainEnvelopeCid,
     envelopeHash: chainEnvelopeHash,
     priceUsdc: chainPrice,
-  } = decoded.args as unknown as {
-    listingId: bigint
-    seller: `0x${string}`
-    dataCid: string
-    envelopeCid: string
-    envelopeHash: `0x${string}`
-    priceUsdc: bigint
-  }
+  } = args
 
   if (chainDataCid !== dataCid) {
     throw new ListingVerificationError(

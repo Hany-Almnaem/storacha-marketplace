@@ -64,7 +64,8 @@ export const Bytes32Schema = z
   .regex(bytes32Regex, 'Invalid bytes32 hash')
 
 /**
- * USDC amount validation (string format for precision)
+ * priceUsdc must be raw USDC units (6 decimals).
+ * Example: 10 USDC = "10000000"
  */
 export const UsdcAmountSchema = z
   .string()

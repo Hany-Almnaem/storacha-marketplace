@@ -22,7 +22,11 @@ export class ListingVerificationError extends Error {
 
   constructor(code: string, message: string, status = 400) {
     super(message)
+
+    this.name = 'ListingVerificationError'
     this.code = code
     this.status = status
+
+    Error.captureStackTrace?.(this, ListingVerificationError)
   }
 }

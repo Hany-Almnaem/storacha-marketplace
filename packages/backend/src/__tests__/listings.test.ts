@@ -148,12 +148,23 @@ describe('GET /api/listings', () => {
 
 describe('POST /api/listings', () => {
   it('creates a listing with valid auth', async () => {
+    mockListingCreate.mockResolvedValue({
+      id: LISTING_ID,
+      onchainId: 123,
+      sellerAddress: SELLER_ADDRESS.toLowerCase(),
+      title: basePayload.title,
+      description: basePayload.description,
+      category: basePayload.category,
+      priceUsdc: makeDecimal('10000000'),
+      createdAt: new Date(),
+    })
+
     const res = await request(app)
       .post('/api/listings')
       .set('Authorization', buildAuthHeader(SELLER_ADDRESS))
       .send(basePayload)
 
-    expect(res.status).toBe(200)
+    expect(res.status).toBe(201)
     expect(res.body.data.id).toBe(LISTING_ID)
   })
 

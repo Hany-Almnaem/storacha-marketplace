@@ -1,3 +1,14 @@
+-- NOTE:
+-- This migration recreates the Listing table.
+-- Because the project is still in early development with no
+-- production data, it assumes a fresh database state.
+--
+-- If you already have a local database, run:
+-- pnpm prisma migrate reset
+--
+-- Future migrations should use additive changes instead of
+-- table recreation.
+
 -- CreateTable
 CREATE TABLE "Listing" (
     "id" TEXT NOT NULL,

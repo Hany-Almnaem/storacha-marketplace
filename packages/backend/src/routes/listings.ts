@@ -35,6 +35,16 @@ function buildPriceFilter(minPrice?: string, maxPrice?: string) {
   return Object.keys(filter).length > 0 ? filter : undefined
 }
 
+function formatPriceUsdc(value: Prisma.Decimal | string | number) {
+  const str = value.toString()
+
+  try {
+    return formatUnits(BigInt(str), 6)
+  } catch {
+    return str
+  }
+}
+
 router.get('/', async (req: Request, res: Response, next: NextFunction) => {
   try {
     const parsed = ListingQuerySchema.safeParse(req.query)
@@ -101,7 +111,7 @@ router.get('/', async (req: Request, res: Response, next: NextFunction) => {
       title: listing.title,
       description: listing.description,
       category: listing.category,
-      priceUsdc: formatUnits(BigInt(listing.priceUsdc.toString()), 6),
+      priceUsdc: formatPriceUsdc(listing.priceUsdc),
       dataCid: listing.dataCid,
       sellerAddress: listing.sellerAddress,
       salesCount: listing._count.purchases,
@@ -144,7 +154,7 @@ router.get(
         title: listing.title,
         description: listing.description,
         category: listing.category,
-        priceUsdc: formatUnits(BigInt(listing.priceUsdc.toString()), 6),
+        priceUsdc: formatPriceUsdc(listing.priceUsdc),
         active: listing.active,
         origFilename: listing.origFilename,
         contentType: listing.contentType,
@@ -208,6 +218,18 @@ router.post(
         priceUsdc: parsed.data.priceUsdc,
       })
 
+      const walletAddress = (req as AuthenticatedRequest).walletAddress
+
+      if (
+        !walletAddress ||
+        walletAddress.toLowerCase() !== verification.sellerAddress.toLowerCase()
+      ) {
+        return res.status(403).json({
+          error: 'SELLER_MISMATCH',
+          message: 'Wallet address does not match transaction seller',
+        })
+      }
+
       const listing = await prisma.listing.create({
         data: {
           onchainId: verification.onchainId,
@@ -229,7 +251,19 @@ router.post(
         },
       })
 
-      res.json({ data: listing })
+      return res.status(201).json({
+        message: 'Listing created successfully',
+        data: {
+          id: listing.id,
+          onchainId: listing.onchainId,
+          sellerAddress: listing.sellerAddress,
+          title: listing.title,
+          description: listing.description,
+          category: listing.category,
+          priceUsdc: formatPriceUsdc(listing.priceUsdc),
+          createdAt: listing.createdAt,
+        },
+      })
     } catch (err) {
       if (err instanceof ListingVerificationError) {
         return res.status(400).json({
