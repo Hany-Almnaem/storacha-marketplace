@@ -170,23 +170,38 @@ describe('purchases API', () => {
       })
     })
 
-    it('sets no-cache headers', async () => {
+    it('sets cache control and pragma headers', async () => {
       const res = await request(app)
         .get('/api/purchases')
         .set('Authorization', buildAuthHeader(BUYER_ADDRESS))
 
       expect(res.headers['cache-control']).toBe('no-store')
+      expect(res.headers['pragma']).toBe('no-cache')
       expect(res.headers['vary']).toContain('Authorization')
     })
 
-    it('applies cursor filter', async () => {
+    it('orders by createdAt and id desc', async () => {
+      await request(app)
+        .get('/api/purchases')
+        .set('Authorization', buildAuthHeader(BUYER_ADDRESS))
+
+      const findManyArgs = mockPurchaseFindMany.mock.calls[0]?.[0] as any
+      expect(findManyArgs.orderBy).toEqual([
+        { createdAt: 'desc' },
+        { id: 'desc' },
+      ])
+    })
+
+    it('applies stable cursor pagination', async () => {
       await request(app)
         .get(`/api/purchases?cursor=${PURCHASE_ID}`)
         .set('Authorization', buildAuthHeader(BUYER_ADDRESS))
 
-      const query = mockPurchaseFindMany.mock.calls[0]?.[0] as any
+      const findManyArgs = mockPurchaseFindMany.mock.calls[0]?.[0] as any
 
-      expect(query.where.id).toEqual({ gt: PURCHASE_ID })
+      expect(findManyArgs.cursor).toEqual({ id: PURCHASE_ID })
+      expect(findManyArgs.skip).toBe(1)
+      expect(findManyArgs.where.id).toBeUndefined()
     })
 
     it('paginates results with nextCursor', async () => {
@@ -204,7 +219,7 @@ describe('purchases API', () => {
 
       expect(res.status).toBe(200)
       expect(res.body.purchases).toHaveLength(2)
-      expect(res.body.nextCursor).toBe(PURCHASE_ID_3)
+      expect(res.body.nextCursor).toBe(PURCHASE_ID_2)
       expect(query.take).toBe(3)
     })
 
@@ -665,13 +680,28 @@ describe('purchases API', () => {
       expect(res.body.purchases[0].buyerAddress).toBe(
         BUYER_ADDRESS.toLowerCase()
       )
-      expect(res.body.nextCursor).toBe(PURCHASE_ID_3)
+      expect(res.body.nextCursor).toBe(PURCHASE_ID_2)
       expect(query.where.keyDelivered).toBe(false)
       expect(query.where.buyerPublicKey).toEqual({ not: null })
       expect(query.where.listing.sellerAddress).toEqual({
         equals: SELLER_ADDRESS.toLowerCase(),
         mode: 'insensitive',
       })
+    })
+
+    it('applies stable cursor for pending deliveries', async () => {
+      await request(app)
+        .get(`/api/seller/pending-deliveries?cursor=${PURCHASE_ID}`)
+        .set('Authorization', buildAuthHeader(SELLER_ADDRESS))
+
+      const findManyArgs = mockPurchaseFindMany.mock.calls[0]?.[0] as any
+
+      expect(findManyArgs.cursor).toEqual({ id: PURCHASE_ID })
+      expect(findManyArgs.skip).toBe(1)
+      expect(findManyArgs.orderBy).toEqual([
+        { createdAt: 'desc' },
+        { id: 'desc' },
+      ])
     })
 
     it('rejects invalid query parameters', async () => {
@@ -684,7 +714,7 @@ describe('purchases API', () => {
       expect(Array.isArray(res.body.details)).toBe(true)
     })
 
-    it('sets no-cache headers', async () => {
+    it('sets cache control and pragma headers', async () => {
       mockPurchaseFindMany.mockResolvedValue([basePendingPurchase])
 
       const res = await request(app)
@@ -692,6 +722,7 @@ describe('purchases API', () => {
         .set('Authorization', buildAuthHeader(SELLER_ADDRESS))
 
       expect(res.headers['cache-control']).toBe('no-store')
+      expect(res.headers['pragma']).toBe('no-cache')
       expect(res.headers['vary']).toContain('Authorization')
     })
 

@@ -13,6 +13,7 @@ import { useEffect, useState } from 'react'
 import { useAccount, useSignMessage } from 'wagmi'
 
 import { DownloadAccess } from '@/components/DownloadAccess'
+import { BLOCK_EXPLORER_URL } from '@/config'
 
 const API_URL = process.env['NEXT_PUBLIC_API_URL'] || 'http://localhost:3001'
 
@@ -181,15 +182,36 @@ export default function PurchasesPage() {
                   Purchased on {new Date(purchase.createdAt).toLocaleString()}
                 </p>
 
-                <div className="mt-1 flex flex-wrap gap-x-3 gap-y-1 text-xs text-muted-foreground font-mono">
-                  <span title={purchase.id}>ID: {shortValue(purchase.id)}</span>
-                  <span title={purchase.listing.sellerAddress}>
-                    Seller: {shortValue(purchase.listing.sellerAddress)}
-                  </span>
-                  {purchase.txHash && (
-                    <span title={purchase.txHash}>
-                      Tx: {shortValue(purchase.txHash, 6, 4)}
+                <div className="mt-3 grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-2 text-[11px] text-muted-foreground font-mono bg-muted/30 p-2.5 rounded-lg border border-border/50">
+                  <div className="flex flex-col gap-0.5">
+                    <span
+                      className="text-[10px] uppercase tracking-wider opacity-60 font-sans font-semibold truncate"
+                      title={purchase.id}
+                    >
+                      ID: {shortValue(purchase.id)}
                     </span>
+                  </div>
+                  <div className="flex flex-col gap-0.5">
+                    <span
+                      className="text-[10px] uppercase tracking-wider opacity-60 font-sans font-semibold truncate"
+                      title={purchase.listing.sellerAddress}
+                    >
+                      Seller: {shortValue(purchase.listing.sellerAddress)}
+                    </span>
+                  </div>
+                  {purchase.txHash && (
+                    <div className="flex flex-col gap-0.5 sm:col-span-2 mt-1 pt-1 border-t border-border/30">
+                      <a
+                        href={`${BLOCK_EXPLORER_URL}/tx/${purchase.txHash}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="truncate text-blue-500 hover:underline flex items-center gap-1"
+                        title={purchase.txHash}
+                      >
+                        Tx: {shortValue(purchase.txHash, 6, 6)}
+                        <RefreshCw className="w-2.5 h-2.5 opacity-50" />
+                      </a>
+                    </div>
                   )}
                 </div>
               </div>
@@ -202,7 +224,7 @@ export default function PurchasesPage() {
                     Key Delivered
                   </span>
                 ) : (
-                  <span className="inline-flex items-center gap-2 rounded-full bg-yellow-500/10 px-3 py-1 text-sm font-medium text-yellow-600">
+                  <span className="inline-flex items-center gap-2 rounded-full bg-yellow-100 border border-yellow-200 px-3 py-1.5 text-sm font-semibold text-yellow-700 shadow-sm animate-pulse-subtle">
                     <Clock className="w-4 h-4" />
                     Awaiting Key
                   </span>

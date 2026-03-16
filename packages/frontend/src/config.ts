@@ -8,3 +8,6 @@ export const config = createConfig({
     [mainnet.id]: http(),
   },
 })
+export const BLOCK_EXPLORER_URL =
+  process.env['NEXT_PUBLIC_BLOCK_EXPLORER_URL'] ||
+  'https://sepolia.basescan.org'
