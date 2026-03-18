@@ -73,7 +73,7 @@ async function inspectLog(log: any): Promise<{
     txHash,
     logIndex,
     blockNumber,
-    alreadyProcessed: !!existing,
+    alreadyProcessed: !!existing?.processed,
     listingId: listingId.toString(),
     buyer: buyer as string,
     amountUsdc: amountUsdc.toString(),
