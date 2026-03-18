@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from 'react'
+import { isAddress } from 'viem'
 import { useAccount, useSignMessage } from 'wagmi'
 import { waitForTransactionReceipt } from 'wagmi/actions'
 
@@ -45,8 +46,14 @@ export default function BuyButton({ onchainId, priceUsdc }: BuyButtonProps) {
   const [status, setStatus] = useState<Status>('idle')
   const [error, setError] = useState<ParsedRpcError | null>(null)
 
+  const isConfigValid =
+    USDC_ADDRESS &&
+    MARKETPLACE_ADDRESS &&
+    isAddress(USDC_ADDRESS) &&
+    isAddress(MARKETPLACE_ADDRESS)
+
   const { approveIfNeeded } = useUsdcApproval(
-    USDC_ADDRESS,
+    USDC_ADDRESS as `0x${string}`,
     MARKETPLACE_ADDRESS,
     priceUsdc
   )
@@ -118,11 +125,19 @@ export default function BuyButton({ onchainId, priceUsdc }: BuyButtonProps) {
       setStatus('buying')
       const txHash = await purchase(onchainId)
 
+      if (!txHash) {
+        throw new Error('Failed to purchase')
+      }
+
       /* 3️⃣ Wait for Confirmation */
       setStatus('confirming')
-      await waitForTransactionReceipt(config, {
+      const receipt = await waitForTransactionReceipt(config, {
         hash: txHash,
       })
+
+      if (receipt.status === 'reverted') {
+        throw new Error('Transaction reverted on-chain')
+      }
 
       /* 4️⃣ Wait for backend indexing */
       const purchaseRecord = await waitForBackendPurchase(txHash)
@@ -195,16 +210,26 @@ export default function BuyButton({ onchainId, priceUsdc }: BuyButtonProps) {
 
   return (
     <div className="space-y-3">
-      <button
-        onClick={handleBuy}
-        disabled={status !== 'idle' && status !== 'error'}
-        className="w-full py-3 px-4 rounded-xl font-semibold text-white
-        bg-blue-600 hover:bg-blue-700
-        disabled:bg-gray-400 disabled:cursor-not-allowed
-        transition-all duration-200 shadow-sm"
-      >
-        {labelMap[status]}
-      </button>
+      {!isConfigValid ? (
+        <div className="text-sm bg-yellow-50 border border-yellow-200 p-3 rounded-lg space-y-1">
+          <p className="font-semibold text-yellow-800">Configuration Error</p>
+          <p className="text-yellow-700">
+            Marketplace or USDC address is missing or invalid in environment
+            variables.
+          </p>
+        </div>
+      ) : (
+        <button
+          onClick={handleBuy}
+          disabled={status !== 'idle' && status !== 'error'}
+          className="w-full py-3 px-4 rounded-xl font-semibold text-white
+          bg-blue-600 hover:bg-blue-700
+          disabled:bg-gray-400 disabled:cursor-not-allowed
+          transition-all duration-200 shadow-sm"
+        >
+          {labelMap[status]}
+        </button>
+      )}
 
       {error && (
         <div className="text-sm bg-red-50 border border-red-200 p-3 rounded-lg space-y-1">

@@ -1,6 +1,8 @@
 import { parseUnits } from 'viem'
-import { useWriteContract, useReadContract } from 'wagmi'
+import { useWriteContract, useAccount } from 'wagmi'
+import { readContract } from 'wagmi/actions'
 
+import { config } from '../config'
 const ERC20_ABI = [
   {
     name: 'approve',
@@ -31,23 +33,24 @@ const ERC20_ABI = [
 export function useUsdcApproval(
   usdcAddress: `0x${string}`,
   marketplaceAddress: `0x${string}`,
-  priceUsdc: string,
-  requiredAmount: string
+  priceUsdc: string
 ) {
   const { writeContractAsync } = useWriteContract()
-  const { readContractAsync } = useReadContract()
+  const { address } = useAccount()
 
   const approveIfNeeded = async () => {
+    if (!address) throw new Error('Wallet not connected')
+
     const amount = parseUnits(priceUsdc, 6) // ✅ USDC = 6 decimals
 
-    const currentAllowance = await readContractAsync({
+    const currentAllowance = (await readContract(config, {
       address: usdcAddress,
       abi: ERC20_ABI,
-      functionName: 'allowancegi',
+      functionName: 'allowance',
       args: [address, marketplaceAddress],
-    })
+    })) as bigint
 
-    if (requiredAmount > currentAllowance) {
+    if (amount > currentAllowance) {
       return writeContractAsync({
         address: usdcAddress,
         abi: ERC20_ABI,
