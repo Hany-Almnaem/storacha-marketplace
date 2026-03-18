@@ -435,6 +435,44 @@ describe('ListingQuerySchema', () => {
     })
     expect(result.success).toBe(false)
   })
+
+  it('should accept human-readable minPrice and maxPrice', () => {
+    const result = ListingQuerySchema.safeParse({
+      minPrice: '10',
+      maxPrice: '25.5',
+    })
+
+    expect(result.success).toBe(true)
+
+    if (result.success) {
+      expect(result.data.minPrice).toBe('10')
+      expect(result.data.maxPrice).toBe('25.5')
+    }
+  })
+
+  it('should accept decimal prices up to 6 decimals', () => {
+    const result = ListingQuerySchema.safeParse({
+      minPrice: '0.123456',
+    })
+
+    expect(result.success).toBe(true)
+  })
+
+  it('should reject price with more than 6 decimals', () => {
+    const result = ListingQuerySchema.safeParse({
+      minPrice: '0.1234567',
+    })
+
+    expect(result.success).toBe(false)
+  })
+
+  it('should reject invalid price format', () => {
+    const result = ListingQuerySchema.safeParse({
+      minPrice: 'abc',
+    })
+
+    expect(result.success).toBe(false)
+  })
 })
 
 // ============================================================================
