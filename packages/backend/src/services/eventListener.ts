@@ -13,6 +13,7 @@ import { notifySeller } from './notification.js'
 
 const POLL_INTERVAL_MS = 8_000
 export const MAX_BLOCK_CHUNK = 2_000n
+export const OVERLAP_BLOCKS = 5n
 const MAX_RPC_RETRIES = 3
 const RPC_RETRY_BASE_MS = 1_000
 
@@ -63,6 +64,42 @@ export async function withRetry<T>(
   throw new Error('unreachable')
 }
 
+export async function recordFailedEvent(
+  log: any,
+  errorMessage: string
+): Promise<void> {
+  try {
+    await prismaDB.eventLog.upsert({
+      where: {
+        txHash_logIndex: {
+          txHash: log.transactionHash,
+          logIndex: log.logIndex,
+        },
+      },
+      update: {
+        error: errorMessage,
+      },
+      create: {
+        eventType: 'PurchaseCompleted',
+        txHash: log.transactionHash,
+        logIndex: log.logIndex,
+        blockNumber: Number(log.blockNumber),
+        processed: false,
+        error: errorMessage,
+        data: {
+          address: log.address,
+          data: log.data,
+          topics: log.topics,
+        },
+      },
+    })
+  } catch (dbError) {
+    console.error(
+      `[listener] Failed to record event failure: ${dbError instanceof Error ? dbError.message : String(dbError)}`
+    )
+  }
+}
+
 export async function processLog(log: any): Promise<void> {
   if (log.blockNumber == null || !log.transactionHash || log.logIndex == null) {
     console.warn('[listener] Skipping log with missing fields')
@@ -79,7 +116,7 @@ export async function processLog(log: any): Promise<void> {
     },
   })
 
-  if (alreadyProcessed) {
+  if (alreadyProcessed?.processed) {
     return
   }
 
@@ -115,8 +152,10 @@ export async function processLog(log: any): Promise<void> {
       },
     })
 
-    await tx.eventLog.create({
-      data: {
+    await tx.eventLog.upsert({
+      where: { txHash_logIndex: { txHash, logIndex } },
+      update: { processed: true, error: null },
+      create: {
         eventType: 'PurchaseCompleted',
         txHash,
         logIndex,
@@ -146,15 +185,14 @@ export async function pollOnce(): Promise<void> {
     const confirmedBlock = latestBlock - BigInt(CONFIRMATIONS_REQUIRED)
 
     const lastEvent = await prismaDB.eventLog.findFirst({
+      where: { eventType: 'PurchaseCompleted' },
       orderBy: { blockNumber: 'desc' },
     })
 
-    // Overlap: re-scan from lastEvent.blockNumber (not +1n) so that
-    // partially processed blocks are retried. The dedup check in
-    // processLog safely skips already-processed events.
-    const fromBlock = lastEvent
-      ? BigInt(lastEvent.blockNumber)
-      : confirmedBlock - 5n
+    const rawFrom = lastEvent
+      ? BigInt(lastEvent.blockNumber) - OVERLAP_BLOCKS
+      : confirmedBlock - OVERLAP_BLOCKS
+    const fromBlock = rawFrom > 0n ? rawFrom : 0n
 
     if (fromBlock > confirmedBlock) return
 
@@ -186,7 +224,15 @@ export async function pollOnce(): Promise<void> {
       }
 
       for (const log of logs) {
-        await processLog(log)
+        try {
+          await processLog(log)
+        } catch (error) {
+          const message = error instanceof Error ? error.message : String(error)
+          console.error(
+            `[listener] Failed to process log tx=${log.transactionHash} logIndex=${log.logIndex} block=${log.blockNumber}: ${message}`
+          )
+          await recordFailedEvent(log, message)
+        }
       }
 
       chunkStart = chunkEnd + 1n
