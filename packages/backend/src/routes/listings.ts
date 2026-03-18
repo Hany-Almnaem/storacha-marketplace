@@ -6,13 +6,13 @@ import {
   type Response,
   type Router as ExpressRouter,
 } from 'express'
+import { formatUnits, parseUnits } from 'viem'
+
+import { verifyListingCreation } from '@/services/listingVerification.js'
+import { ListingVerificationError } from '@/types/listingVerification.js'
 
 import { prisma } from '../config/db.js'
-import {
-  AddressSchema,
-  CreateListingSchema,
-  ListingQuerySchema,
-} from '../lib/validation.js'
+import { CreateListingSchema, ListingQuerySchema } from '../lib/validation.js'
 import {
   optionalAuth,
   requireAuth,
@@ -21,9 +21,15 @@ import {
 
 const router: ExpressRouter = Router()
 
-const CreateListingRequestSchema = CreateListingSchema.extend({
-  sellerAddress: AddressSchema,
-})
+function toRawUsdc(value?: string) {
+  if (!value) return undefined
+
+  try {
+    return parseUnits(value, 6).toString()
+  } catch {
+    return undefined
+  }
+}
 
 function buildPriceFilter(minPrice?: string, maxPrice?: string) {
   const filter: { gte?: string; lte?: string } = {}
@@ -39,6 +45,16 @@ function buildPriceFilter(minPrice?: string, maxPrice?: string) {
   return Object.keys(filter).length > 0 ? filter : undefined
 }
 
+function formatPriceUsdc(value: Prisma.Decimal | string | number) {
+  const str = value.toString()
+
+  try {
+    return formatUnits(BigInt(str), 6)
+  } catch {
+    return str
+  }
+}
+
 router.get('/', async (req: Request, res: Response, next: NextFunction) => {
   try {
     const parsed = ListingQuerySchema.safeParse(req.query)
@@ -50,7 +66,12 @@ router.get('/', async (req: Request, res: Response, next: NextFunction) => {
     }
 
     const { category, cursor, limit, minPrice, maxPrice, seller } = parsed.data
-    const priceFilter = buildPriceFilter(minPrice, maxPrice)
+
+    const rawMinPrice = toRawUsdc(minPrice)
+    const rawMaxPrice = toRawUsdc(maxPrice)
+
+    const priceFilter = buildPriceFilter(rawMinPrice, rawMaxPrice)
+
     const sellerAddress = seller?.toLowerCase()
 
     const baseWhere: Prisma.ListingWhereInput = {
@@ -105,7 +126,7 @@ router.get('/', async (req: Request, res: Response, next: NextFunction) => {
       title: listing.title,
       description: listing.description,
       category: listing.category,
-      priceUsdc: listing.priceUsdc.toString(),
+      priceUsdc: formatPriceUsdc(listing.priceUsdc),
       dataCid: listing.dataCid,
       sellerAddress: listing.sellerAddress,
       salesCount: listing._count.purchases,
@@ -148,7 +169,7 @@ router.get(
         title: listing.title,
         description: listing.description,
         category: listing.category,
-        priceUsdc: listing.priceUsdc.toString(),
+        priceUsdc: formatPriceUsdc(listing.priceUsdc),
         active: listing.active,
         origFilename: listing.origFilename,
         contentType: listing.contentType,
@@ -196,7 +217,7 @@ router.post(
   requireAuth,
   async (req: Request, res: Response, next: NextFunction) => {
     try {
-      const parsed = CreateListingRequestSchema.safeParse(req.body)
+      const parsed = CreateListingSchema.safeParse(req.body)
       if (!parsed.success) {
         return res.status(400).json({
           error: 'Validation failed',
@@ -204,37 +225,76 @@ router.post(
         })
       }
 
-      const walletAddress = (req as AuthenticatedRequest).walletAddress
-      const sellerAddress = parsed.data.sellerAddress.toLowerCase()
+      const verification = await verifyListingCreation({
+        txHash: parsed.data.txHash as `0x${string}`,
+        dataCid: parsed.data.dataCid,
+        envelopeCid: parsed.data.envelopeCid,
+        envelopeHash: parsed.data.envelopeHash,
+        priceUsdc: parsed.data.priceUsdc,
+      })
 
-      if (!walletAddress || walletAddress !== sellerAddress) {
-        return res
-          .status(401)
-          .json({ error: 'Signature does not match seller' })
+      const walletAddress = (req as AuthenticatedRequest).walletAddress
+
+      if (
+        !walletAddress ||
+        walletAddress.toLowerCase() !== verification.sellerAddress.toLowerCase()
+      ) {
+        return res.status(403).json({
+          error: 'SELLER_MISMATCH',
+          message: 'Wallet address does not match transaction seller',
+        })
       }
 
-      const { sellerAddress: _seller, ...listingData } = parsed.data
-
-      const created = await prisma.listing.create({
+      const listing = await prisma.listing.create({
         data: {
-          ...listingData,
-          sellerAddress,
+          onchainId: verification.onchainId,
+          sellerAddress: verification.sellerAddress.toLowerCase(),
+
+          dataCid: verification.dataCid,
+          envelopeCid: verification.envelopeCid,
+          envelopeHash: verification.envelopeHash,
+
+          title: parsed.data.title,
+          description: parsed.data.description,
+          category: parsed.data.category,
+
+          priceUsdc: verification.priceUsdc,
+
+          origFilename: parsed.data.origFilename ?? null,
+          contentType: parsed.data.contentType ?? null,
+          txHash: parsed.data.txHash,
         },
       })
 
-      res.status(201).json({
-        id: created.id,
+      return res.status(201).json({
         message: 'Listing created successfully',
+        data: {
+          id: listing.id,
+          onchainId: listing.onchainId,
+          sellerAddress: listing.sellerAddress,
+          title: listing.title,
+          description: listing.description,
+          category: listing.category,
+          priceUsdc: formatPriceUsdc(listing.priceUsdc),
+          createdAt: listing.createdAt,
+        },
       })
-    } catch (error) {
+    } catch (err) {
+      if (err instanceof ListingVerificationError) {
+        return res.status(400).json({
+          error: err.code,
+          message: err.message,
+        })
+      }
+
       if (
-        error instanceof Prisma.PrismaClientKnownRequestError &&
-        error.code === 'P2002'
+        err instanceof Prisma.PrismaClientKnownRequestError &&
+        err.code === 'P2002'
       ) {
         return res.status(409).json({ error: 'Listing already exists' })
       }
 
-      next(error)
+      next(err)
     }
   }
 )

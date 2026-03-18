@@ -28,11 +28,6 @@ export const txHashRegex = /^0x[a-fA-F0-9]{64}$/
  */
 export const bytes32Regex = /^0x[a-fA-F0-9]{64}$/
 
-/**
- * USDC amount regex (positive decimal with up to 6 decimal places)
- */
-export const usdcAmountRegex = /^\d+(\.\d{1,6})?$/
-
 // ============================================================================
 // Base Schemas (Reusable)
 // ============================================================================
@@ -64,11 +59,20 @@ export const Bytes32Schema = z
   .regex(bytes32Regex, 'Invalid bytes32 hash')
 
 /**
- * USDC amount validation (string format for precision)
+ * priceUsdc must be raw USDC units (6 decimals).
+ * Example: 10 USDC = "10000000"
  */
 export const UsdcAmountSchema = z
   .string()
-  .regex(usdcAmountRegex, 'Invalid USDC amount')
+  .regex(/^\d+$/, 'Invalid USDC amount (must be raw USDC units)')
+
+/**
+ * Human-readable USDC amount (for query params)
+ * Example: "10", "10.5", "0.25"
+ */
+export const UsdcDecimalSchema = z
+  .string()
+  .regex(/^\d+(\.\d{1,6})?$/, 'Invalid USDC amount')
 
 /**
  * Listing category enum
@@ -90,7 +94,7 @@ export const CategorySchema = z.enum([
  * Used by POST /listings endpoint
  */
 export const CreateListingSchema = z.object({
-  onchainId: z.number().int().positive('Listing ID must be positive'),
+  txHash: TxHashSchema,
   dataCid: CidSchema,
   envelopeCid: CidSchema,
   envelopeHash: Bytes32Schema,
@@ -98,6 +102,7 @@ export const CreateListingSchema = z.object({
     .string()
     .min(3, 'Title must be at least 3 characters')
     .max(100, 'Title must be at most 100 characters'),
+
   description: z
     .string()
     .min(10, 'Description must be at least 10 characters')
@@ -185,8 +190,8 @@ export const ListingQuerySchema = z.object({
     .string()
     .transform((val) => val === 'true')
     .optional(),
-  minPrice: UsdcAmountSchema.optional(),
-  maxPrice: UsdcAmountSchema.optional(),
+  minPrice: UsdcDecimalSchema.optional(),
+  maxPrice: UsdcDecimalSchema.optional(),
   cursor: z.string().cuid('Invalid cursor').optional(),
   limit: z.coerce.number().int().min(1).max(100).default(20),
 })

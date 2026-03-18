@@ -7,7 +7,6 @@ import {
   addressRegex,
   txHashRegex,
   bytes32Regex,
-  usdcAmountRegex,
   // Schemas
   CidSchema,
   AddressSchema,
@@ -109,22 +108,6 @@ describe('Regex Patterns', () => {
       expect(bytes32Regex.test('')).toBe(false)
     })
   })
-
-  describe('usdcAmountRegex', () => {
-    it('should match valid USDC amounts', () => {
-      expect(usdcAmountRegex.test('100')).toBe(true)
-      expect(usdcAmountRegex.test('100.5')).toBe(true)
-      expect(usdcAmountRegex.test('100.123456')).toBe(true) // 6 decimals
-      expect(usdcAmountRegex.test('0.000001')).toBe(true)
-    })
-
-    it('should reject invalid USDC amounts', () => {
-      expect(usdcAmountRegex.test('100.1234567')).toBe(false) // 7 decimals
-      expect(usdcAmountRegex.test('-100')).toBe(false) // negative
-      expect(usdcAmountRegex.test('abc')).toBe(false)
-      expect(usdcAmountRegex.test('')).toBe(false)
-    })
-  })
 })
 
 // ============================================================================
@@ -179,14 +162,14 @@ describe('Base Schemas', () => {
 
 describe('CreateListingSchema', () => {
   const validListing = {
-    onchainId: 1,
+    txHash: VALID_TX_HASH,
     dataCid: VALID_CID,
     envelopeCid: VALID_CID,
     envelopeHash: VALID_BYTES32,
     title: 'Test Dataset',
     description: 'This is a test dataset for the marketplace',
     category: 'AI/ML',
-    priceUsdc: '10.00',
+    priceUsdc: '10000000', // raw USDC units (10 USDC)
   }
 
   it('should accept valid listing data', () => {
@@ -203,10 +186,17 @@ describe('CreateListingSchema', () => {
     expect(result.success).toBe(true)
   })
 
-  it('should reject negative onchainId', () => {
+  it('should reject missing txHash', () => {
+    const { txHash, ...withoutHash } = validListing
+
+    const result = CreateListingSchema.safeParse(withoutHash)
+    expect(result.success).toBe(false)
+  })
+
+  it('should reject invalid txHash', () => {
     const result = CreateListingSchema.safeParse({
       ...validListing,
-      onchainId: -1,
+      txHash: 'invalid',
     })
     expect(result.success).toBe(false)
   })
@@ -307,7 +297,7 @@ describe('CreatePurchaseSchema', () => {
       listingId: 'clh1234567890abcdef12345',
       buyerAddress: VALID_ADDRESS,
       txHash: VALID_TX_HASH,
-      amountUsdc: '10.00',
+      amountUsdc: '10000000',
     })
     expect(result.success).toBe(true)
   })
@@ -317,7 +307,7 @@ describe('CreatePurchaseSchema', () => {
       listingId: 'clh1234567890abcdef12345',
       buyerAddress: VALID_ADDRESS,
       txHash: VALID_TX_HASH,
-      amountUsdc: '10.00',
+      amountUsdc: '10000000',
       blockNumber: 12345678,
     })
     expect(result.success).toBe(true)
@@ -443,6 +433,44 @@ describe('ListingQuerySchema', () => {
     const result = ListingQuerySchema.safeParse({
       limit: '101',
     })
+    expect(result.success).toBe(false)
+  })
+
+  it('should accept human-readable minPrice and maxPrice', () => {
+    const result = ListingQuerySchema.safeParse({
+      minPrice: '10',
+      maxPrice: '25.5',
+    })
+
+    expect(result.success).toBe(true)
+
+    if (result.success) {
+      expect(result.data.minPrice).toBe('10')
+      expect(result.data.maxPrice).toBe('25.5')
+    }
+  })
+
+  it('should accept decimal prices up to 6 decimals', () => {
+    const result = ListingQuerySchema.safeParse({
+      minPrice: '0.123456',
+    })
+
+    expect(result.success).toBe(true)
+  })
+
+  it('should reject price with more than 6 decimals', () => {
+    const result = ListingQuerySchema.safeParse({
+      minPrice: '0.1234567',
+    })
+
+    expect(result.success).toBe(false)
+  })
+
+  it('should reject invalid price format', () => {
+    const result = ListingQuerySchema.safeParse({
+      minPrice: 'abc',
+    })
+
     expect(result.success).toBe(false)
   })
 })

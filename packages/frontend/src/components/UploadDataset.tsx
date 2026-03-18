@@ -103,7 +103,7 @@ export function UploadDataset({ onUploadComplete }: UploadDatasetProps) {
 
   return (
     <div className="w-full max-w-2xl mx-auto p-6 bg-white rounded-lg shadow-sm border border-gray-200">
-      <h2 className="text-xl font-semibold mb-6">Upload Dataset</h2>
+      <h2 className="text-xl font-semibold text-black mb-6">Upload Dataset</h2>
 
       <div className="space-y-6">
         <div>

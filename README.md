@@ -210,6 +210,14 @@ forge script script/Deploy.s.sol --rpc-url $BASE_SEPOLIA_RPC_URL --broadcast --v
 
 Deploy to Railway, Render, or Fly.io with PostgreSQL.
 
+#### Database Migrations
+
+- Some early migrations recreate tables.
+- During development, reset the database if migrations fail:
+  `pnpm prisma migrate reset`
+- In production environments migrations should be additive (e.g. ALTER TABLE ADD
+  COLUMN).
+
 ### Frontend
 
 Deploy to Vercel with environment variables configured.
