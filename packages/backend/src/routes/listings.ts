@@ -6,7 +6,7 @@ import {
   type Response,
   type Router as ExpressRouter,
 } from 'express'
-import { formatUnits } from 'viem'
+import { formatUnits, parseUnits } from 'viem'
 
 import { verifyListingCreation } from '@/services/listingVerification.js'
 import { ListingVerificationError } from '@/types/listingVerification.js'
@@ -20,6 +20,16 @@ import {
 } from '../middleware/auth.js'
 
 const router: ExpressRouter = Router()
+
+function toRawUsdc(value?: string) {
+  if (!value) return undefined
+
+  try {
+    return parseUnits(value, 6).toString()
+  } catch {
+    return undefined
+  }
+}
 
 function buildPriceFilter(minPrice?: string, maxPrice?: string) {
   const filter: { gte?: string; lte?: string } = {}
@@ -56,7 +66,12 @@ router.get('/', async (req: Request, res: Response, next: NextFunction) => {
     }
 
     const { category, cursor, limit, minPrice, maxPrice, seller } = parsed.data
-    const priceFilter = buildPriceFilter(minPrice, maxPrice)
+
+    const rawMinPrice = toRawUsdc(minPrice)
+    const rawMaxPrice = toRawUsdc(maxPrice)
+
+    const priceFilter = buildPriceFilter(rawMinPrice, rawMaxPrice)
+
     const sellerAddress = seller?.toLowerCase()
 
     const baseWhere: Prisma.ListingWhereInput = {

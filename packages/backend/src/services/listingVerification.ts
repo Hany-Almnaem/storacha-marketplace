@@ -1,6 +1,7 @@
 import { parseEventLogs } from 'viem'
 
 import {
+  CONFIRMATIONS_REQUIRED,
   MARKETPLACE_ABI,
   MARKETPLACE_ADDRESS,
   publicClient,
@@ -11,8 +12,6 @@ import type {
   VerifiedListingData,
 } from '../types/listingVerification'
 import { ListingVerificationError } from '../types/listingVerification'
-
-const CONFIRMATIONS_REQUIRED = 2
 
 export async function verifyListingCreation(
   input: ListingVerificationInput
@@ -74,7 +73,7 @@ export async function verifyListingCreation(
     )
   }
 
-  const args = (log as any).args as {
+  type ListingCreatedArgs = {
     listingId: bigint
     seller: `0x${string}`
     dataCid: string
@@ -82,6 +81,15 @@ export async function verifyListingCreation(
     envelopeHash: `0x${string}`
     priceUsdc: bigint
   }
+
+  if (!('args' in log)) {
+    throw new ListingVerificationError(
+      'EVENT_DECODE_FAILED',
+      'Failed to decode event args'
+    )
+  }
+
+  const args = log.args as ListingCreatedArgs
 
   const {
     listingId,

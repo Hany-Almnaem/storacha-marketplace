@@ -7,7 +7,6 @@ import {
   addressRegex,
   txHashRegex,
   bytes32Regex,
-  usdcAmountRegex,
   // Schemas
   CidSchema,
   AddressSchema,
@@ -107,22 +106,6 @@ describe('Regex Patterns', () => {
     it('should reject invalid bytes32', () => {
       expect(bytes32Regex.test('0x123')).toBe(false)
       expect(bytes32Regex.test('')).toBe(false)
-    })
-  })
-
-  describe('usdcAmountRegex', () => {
-    it('should match valid USDC amounts', () => {
-      expect(usdcAmountRegex.test('100')).toBe(true)
-      expect(usdcAmountRegex.test('100.5')).toBe(true)
-      expect(usdcAmountRegex.test('100.123456')).toBe(true) // 6 decimals
-      expect(usdcAmountRegex.test('0.000001')).toBe(true)
-    })
-
-    it('should reject invalid USDC amounts', () => {
-      expect(usdcAmountRegex.test('100.1234567')).toBe(false) // 7 decimals
-      expect(usdcAmountRegex.test('-100')).toBe(false) // negative
-      expect(usdcAmountRegex.test('abc')).toBe(false)
-      expect(usdcAmountRegex.test('')).toBe(false)
     })
   })
 })

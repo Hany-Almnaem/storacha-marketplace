@@ -8,6 +8,7 @@ vi.mock('../config/chain', () => ({
   },
   MARKETPLACE_ABI: [],
   MARKETPLACE_ADDRESS: '0xmarketplace',
+  CONFIRMATIONS_REQUIRED: 2, // ✅ IMPORTANT
 }))
 
 vi.mock('viem', () => ({
@@ -16,7 +17,6 @@ vi.mock('viem', () => ({
 
 import { publicClient } from '../config/chain'
 import { verifyListingCreation } from '../services/listingVerification'
-import { ListingVerificationError } from '../types/listingVerification'
 
 const VALID_INPUT = {
   txHash: '0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef',
@@ -47,6 +47,16 @@ beforeEach(() => {
 })
 
 describe('verifyListingCreation', () => {
+  it('throws TX_NOT_FOUND if RPC throws', async () => {
+    vi.mocked(publicClient.getTransactionReceipt).mockRejectedValue(
+      new Error('RPC error')
+    )
+
+    await expect(verifyListingCreation(VALID_INPUT)).rejects.toMatchObject({
+      code: 'TX_NOT_FOUND',
+    })
+  })
+
   it('throws TX_NOT_FOUND if receipt missing', async () => {
     vi.mocked(publicClient.getTransactionReceipt).mockResolvedValue(null)
 
@@ -115,7 +125,6 @@ describe('verifyListingCreation', () => {
     vi.mocked(publicClient.getTransactionReceipt).mockResolvedValue(
       mockReceipt as any
     )
-
     vi.mocked(publicClient.getTransactionConfirmations).mockResolvedValue(3)
 
     vi.mocked(parseEventLogs).mockReturnValue([
@@ -134,7 +143,6 @@ describe('verifyListingCreation', () => {
     vi.mocked(publicClient.getTransactionReceipt).mockResolvedValue(
       mockReceipt as any
     )
-
     vi.mocked(publicClient.getTransactionConfirmations).mockResolvedValue(3)
 
     vi.mocked(parseEventLogs).mockReturnValue([
@@ -153,7 +161,6 @@ describe('verifyListingCreation', () => {
     vi.mocked(publicClient.getTransactionReceipt).mockResolvedValue(
       mockReceipt as any
     )
-
     vi.mocked(publicClient.getTransactionConfirmations).mockResolvedValue(3)
 
     vi.mocked(parseEventLogs).mockReturnValue([
@@ -172,7 +179,6 @@ describe('verifyListingCreation', () => {
     vi.mocked(publicClient.getTransactionReceipt).mockResolvedValue(
       mockReceipt as any
     )
-
     vi.mocked(publicClient.getTransactionConfirmations).mockResolvedValue(3)
 
     vi.mocked(parseEventLogs).mockReturnValue([
@@ -191,7 +197,6 @@ describe('verifyListingCreation', () => {
     vi.mocked(publicClient.getTransactionReceipt).mockResolvedValue(
       mockReceipt as any
     )
-
     vi.mocked(publicClient.getTransactionConfirmations).mockResolvedValue(3)
 
     vi.mocked(parseEventLogs).mockReturnValue([
