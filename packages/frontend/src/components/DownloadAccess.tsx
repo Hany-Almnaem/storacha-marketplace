@@ -12,6 +12,8 @@ import { validateEnvelope } from '@/lib/envelope'
 import type { EncryptionEnvelope } from '@/lib/envelope'
 import { fetchFromGateway } from '@/lib/gateway'
 
+import { getCachedAuthHeader } from '../lib/authCache'
+
 const API_URL = process.env['NEXT_PUBLIC_API_URL'] || 'http://localhost:3001'
 
 type DownloadStatus =
@@ -191,10 +193,8 @@ export function DownloadAccess({ purchaseId }: DownloadAccessProps) {
     try {
       setStatus('fetching-access')
 
-      const authHeader = await buildAuthHeader(
-        address,
-        signMessageAsync,
-        'general'
+      const authHeader = await getCachedAuthHeader(address, 'general', () =>
+        buildAuthHeader(address, signMessageAsync, 'general')
       )
       const accessRes = await fetch(
         `${API_URL}/api/purchases/${purchaseId}/access`,
