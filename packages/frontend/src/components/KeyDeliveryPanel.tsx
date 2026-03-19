@@ -16,6 +16,8 @@ import { buildAuthHeader } from '@/lib/authHeader'
 import { encryptKeyForBuyer, parsePublicKeyFromBase64 } from '@/lib/keyDelivery'
 import { getOrCreateSpace, initializeClient, uploadBlob } from '@/lib/storacha'
 
+import { getCachedAuthHeader } from '../lib/authCache'
+
 const API_URL = process.env['NEXT_PUBLIC_API_URL'] || 'http://localhost:3001'
 const DEFAULT_SPACE_NAME = 'storacha-marketplace'
 
@@ -211,10 +213,8 @@ export function KeyDeliveryPanel({
     setError(null)
 
     try {
-      const authHeader = await buildAuthHeader(
-        address,
-        signMessageAsync,
-        'general'
+      const authHeader = await getCachedAuthHeader(address, 'general', () =>
+        buildAuthHeader(address, signMessageAsync, 'general')
       )
 
       const allPending: PendingDelivery[] = []
