@@ -8,10 +8,12 @@ import {
 } from '@rainbow-me/rainbowkit'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { useTheme } from 'next-themes'
-import { useState, useEffect } from 'react'
-import { WagmiProvider, http } from 'wagmi'
+import { useLayoutEffect, useRef, useState, useEffect } from 'react'
+import { useAccount, WagmiProvider, http } from 'wagmi'
 import { baseSepolia } from 'wagmi/chains'
 import '@rainbow-me/rainbowkit/styles.css'
+
+import { clearAuthCache } from '../lib/authCache'
 
 const projectId = process.env['NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID'] ?? ''
 
@@ -25,6 +27,31 @@ const config = getDefaultConfig({
 })
 
 const queryClient = new QueryClient()
+
+function AuthCacheInvalidator() {
+  const { address, isConnected } = useAccount()
+  const prevAddressRef = useRef<string | undefined>(undefined)
+
+  useLayoutEffect(() => {
+    const previousAddress = prevAddressRef.current
+
+    if (!isConnected || !address) {
+      // Wallet disconnected entirely: remove all cached headers.
+      clearAuthCache()
+      prevAddressRef.current = undefined
+      return
+    }
+
+    // Wallet account switched: remove only the previous account's cached headers.
+    if (previousAddress && previousAddress !== address) {
+      clearAuthCache(previousAddress)
+    }
+
+    prevAddressRef.current = address
+  }, [address, isConnected])
+
+  return null
+}
 
 /**
  * Web3Provider wraps the application with Wagmi, React Query, and RainbowKit.
@@ -49,6 +76,7 @@ export function Web3Provider({ children }: { children: React.ReactNode }) {
 
   return (
     <WagmiProvider config={config}>
+      <AuthCacheInvalidator />
       <QueryClientProvider client={queryClient}>
         <RainbowKitProvider modalSize="compact" theme={rainbowTheme}>
           {children}
