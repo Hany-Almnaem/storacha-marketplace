@@ -8,7 +8,7 @@ import prismaDB from '../config/db.js'
 import { backfillRange } from '../services/backfill.js'
 
 const txPurchaseUpsert = vi.fn()
-const txEventLogCreate = vi.fn()
+const txEventLogUpsert = vi.fn()
 const txListingFind = vi.fn()
 
 vi.mock('viem', async (importOriginal) => {
@@ -39,7 +39,7 @@ vi.mock('../config/db.js', () => ({
       fn({
         listing: { findUnique: txListingFind },
         purchase: { upsert: txPurchaseUpsert },
-        eventLog: { create: txEventLogCreate },
+        eventLog: { upsert: txEventLogUpsert },
       })
     ),
   },
@@ -117,7 +117,7 @@ describe('backfillRange', () => {
     expect(result.eventsCreated).toBe(1)
     expect(result.eventsFailed).toBe(0)
     expect(txPurchaseUpsert).toHaveBeenCalledTimes(1)
-    expect(txEventLogCreate).toHaveBeenCalledTimes(1)
+    expect(txEventLogUpsert).toHaveBeenCalledTimes(1)
     expect(txPurchaseUpsert).toHaveBeenCalledWith(
       expect.objectContaining({
         create: expect.objectContaining({
@@ -149,6 +149,7 @@ describe('backfillRange', () => {
     mockGetLogs.mockResolvedValue([makeMockLog()])
     ;(prismaDB.eventLog.findUnique as any).mockResolvedValue({
       id: 'existing',
+      processed: true,
     })
 
     const result = await backfillRange({ fromBlock: 1000n, toBlock: 1500n })
@@ -198,13 +199,14 @@ describe('backfillRange', () => {
       expect(result.eventsFound).toBe(1)
       expect(result.eventsCreated).toBe(1)
       expect(txPurchaseUpsert).not.toHaveBeenCalled()
-      expect(txEventLogCreate).not.toHaveBeenCalled()
+      expect(txEventLogUpsert).not.toHaveBeenCalled()
     })
 
     it('reports already-indexed events as skipped', async () => {
       mockGetLogs.mockResolvedValue([makeMockLog()])
       ;(prismaDB.eventLog.findUnique as any).mockResolvedValue({
         id: 'existing',
+        processed: true,
       })
 
       const result = await backfillRange({
