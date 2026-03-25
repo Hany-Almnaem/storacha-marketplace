@@ -12,6 +12,7 @@ import {
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useAccount, useSignMessage } from 'wagmi'
 
+import { getCachedAuthHeader } from '@/lib/authCache'
 import { buildAuthHeader } from '@/lib/authHeader'
 import { encryptKeyForBuyer, parsePublicKeyFromBase64 } from '@/lib/keyDelivery'
 import { getOrCreateSpace, initializeClient, uploadBlob } from '@/lib/storacha'
@@ -211,10 +212,8 @@ export function KeyDeliveryPanel({
     setError(null)
 
     try {
-      const authHeader = await buildAuthHeader(
-        address,
-        signMessageAsync,
-        'general'
+      const authHeader = await getCachedAuthHeader(address, 'general', () =>
+        buildAuthHeader(address, signMessageAsync, 'general')
       )
 
       const allPending: PendingDelivery[] = []
@@ -400,6 +399,8 @@ export function KeyDeliveryPanel({
     [ensureStorachaClient, markDeliveryState, sellerAesKeyJwk, submitKeyCid]
   )
 
+  // Delivery mutations require fresh signatures — do not cache.
+  // Only read operations (fetchPendingDeliveries) use the cached auth.
   const handleDeliverSingle = async (purchase: PendingDelivery) => {
     if (!address || !isConnected) {
       setError('Connect wallet before delivering keys.')

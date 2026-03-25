@@ -14,6 +14,8 @@ import { useAccount, useSignMessage } from 'wagmi'
 
 import { DownloadAccess } from '@/components/DownloadAccess'
 import { BLOCK_EXPLORER_URL } from '@/config'
+import { getCachedAuthHeader } from '@/lib/authCache'
+import { buildAuthHeader } from '@/lib/authHeader'
 
 const API_URL = process.env['NEXT_PUBLIC_API_URL'] || 'http://localhost:3001'
 
@@ -56,11 +58,9 @@ export default function PurchasesPage() {
     setError(null)
 
     try {
-      const timestamp = Date.now().toString()
-      const message = `Authenticate to Data Marketplace\nTimestamp: ${timestamp}`
-      const signature = await signMessageAsync({ message })
-
-      const authHeader = `signature ${address}:${timestamp}:${signature}`
+      const authHeader = await getCachedAuthHeader(address, 'general', () =>
+        buildAuthHeader(address, signMessageAsync, 'general')
+      )
 
       const res = await fetch(`${API_URL}/api/purchases`, {
         headers: { Authorization: authHeader },

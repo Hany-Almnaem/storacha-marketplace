@@ -4,6 +4,7 @@ import { AlertCircle, CheckCircle2, Download, Loader2 } from 'lucide-react'
 import { useState } from 'react'
 import { useAccount, useSignMessage } from 'wagmi'
 
+import { getCachedAuthHeader } from '@/lib/authCache'
 import { buildAuthHeader } from '@/lib/authHeader'
 import { loadBuyerPrivateKey } from '@/lib/buyerKeys'
 import { decryptAndDownload } from '@/lib/download'
@@ -191,10 +192,8 @@ export function DownloadAccess({ purchaseId }: DownloadAccessProps) {
     try {
       setStatus('fetching-access')
 
-      const authHeader = await buildAuthHeader(
-        address,
-        signMessageAsync,
-        'general'
+      const authHeader = await getCachedAuthHeader(address, 'general', () =>
+        buildAuthHeader(address, signMessageAsync, 'general')
       )
       const accessRes = await fetch(
         `${API_URL}/api/purchases/${purchaseId}/access`,

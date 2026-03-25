@@ -6,6 +6,8 @@ import { waitForTransactionReceipt } from 'wagmi/actions'
 
 import { usePurchaseAccess } from '@/hooks/usePurchaseAccess'
 import { useUsdcApproval } from '@/hooks/useUsdcApproval'
+import { getCachedAuthHeader } from '@/lib/authCache'
+import { buildAuthHeader } from '@/lib/authHeader'
 import { getOrCreateBuyerKeypair } from '@/lib/buyerKeys'
 import { classifyRpcError, type ParsedRpcError } from '@/lib/rpcErrors'
 
@@ -63,11 +65,9 @@ export default function BuyButton({ onchainId, priceUsdc }: BuyButtonProps) {
     if (!address) throw new Error('Wallet not connected')
 
     for (let i = 0; i < 15; i++) {
-      const timestamp = Date.now().toString()
-      const message = `Authenticate to Data Marketplace\nTimestamp: ${timestamp}`
-      const signature = await signMessageAsync({ message })
-
-      const authHeader = `signature ${address}:${timestamp}:${signature}`
+      const authHeader = await getCachedAuthHeader(address, 'general', () =>
+        buildAuthHeader(address, signMessageAsync, 'general')
+      )
 
       const res = await fetch(`${API_URL}/api/purchases`, {
         headers: { Authorization: authHeader },
