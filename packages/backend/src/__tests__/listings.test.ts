@@ -218,4 +218,16 @@ describe('POST /api/listings', () => {
 
     expect(res.status).toBe(400)
   })
+
+  it('rejects with 403 when wallet does not match on-chain seller', async () => {
+    const differentAddress = '0x' + 'B'.repeat(40)
+
+    const res = await request(app)
+      .post('/api/listings')
+      .set('Authorization', buildAuthHeader(differentAddress))
+      .send(basePayload)
+
+    expect(res.status).toBe(403)
+    expect(res.body.error).toBe('SELLER_MISMATCH')
+  })
 })
