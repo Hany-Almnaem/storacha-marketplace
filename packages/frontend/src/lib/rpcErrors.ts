@@ -152,8 +152,7 @@ const ERROR_PATTERNS: ErrorPattern[] = [
   {
     test: (m) =>
       /contract.*does not exist/i.test(m) ||
-      /address.*is not a contract/i.test(m) ||
-      /call revert exception/i.test(m),
+      /address.*is not a contract/i.test(m),
     parse: () => ({
       title: 'Invalid Contract Configuration',
       detail:

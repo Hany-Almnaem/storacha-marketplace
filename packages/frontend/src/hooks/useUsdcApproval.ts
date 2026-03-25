@@ -43,12 +43,12 @@ export function useUsdcApproval(
 
     const amount = parseUnits(priceUsdc, 6) // ✅ USDC = 6 decimals
 
-    const currentAllowance = (await readContract(config, {
+    const currentAllowance = await readContract(config, {
       address: usdcAddress,
       abi: ERC20_ABI,
       functionName: 'allowance',
       args: [address, marketplaceAddress],
-    })) as bigint
+    })
 
     if (amount > currentAllowance) {
       return writeContractAsync({
