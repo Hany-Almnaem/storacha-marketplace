@@ -33,11 +33,13 @@ describe('Purchases page identity and ordering', () => {
     expect(pageSource).toContain('Tx: {shortValue(purchase.txHash')
   })
 
-  it('sorts purchases newest first', () => {
-    expect(pageSource).toContain('b.createdAt')
-    expect(pageSource).toContain('a.createdAt')
+  it('relies on backend ordering — no client-side sort', () => {
+    expect(pageSource).not.toMatch(/rows\.sort|\.sort\(\s*\(a,\s*b\)/)
+  })
+
+  it('re-fetches purchases when wallet address changes', () => {
     expect(pageSource).toMatch(
-      /new Date\(b\.createdAt\).*-.*new Date\(a\.createdAt\)/s
+      /useEffect\(\s*\(\)\s*=>\s*\{[\s\S]*?\},\s*\[.*address.*\]\s*\)/
     )
   })
 

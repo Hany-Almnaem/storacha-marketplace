@@ -71,10 +71,6 @@ export default function PurchasesPage() {
 
       const json = await res.json()
       const rows: Purchase[] = json.purchases ?? []
-      rows.sort(
-        (a, b) =>
-          new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
-      )
       setPurchases(rows)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Unable to load purchases.')
@@ -84,10 +80,12 @@ export default function PurchasesPage() {
   }
 
   useEffect(() => {
-    if (mounted && isConnected) {
+    setPurchases([])
+    setError(null)
+    if (mounted && isConnected && address) {
       fetchPurchases()
     }
-  }, [mounted, isConnected])
+  }, [mounted, isConnected, address])
 
   if (!mounted) return null
 
