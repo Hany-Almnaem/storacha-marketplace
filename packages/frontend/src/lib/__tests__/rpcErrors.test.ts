@@ -156,6 +156,28 @@ describe('classifyRpcError', () => {
       )
       expect(result.title).toBe('Contract error')
     })
+
+    it('detects "call revert exception" as a contract error', () => {
+      const result = classifyRpcError(new Error('call revert exception'))
+      expect(result.title).toBe('Contract error')
+    })
+  })
+
+  describe('Invalid Contract Configuration', () => {
+    it('detects "contract does not exist"', () => {
+      const result = classifyRpcError(
+        new Error('contract at address 0x... does not exist')
+      )
+      expect(result.title).toBe('Invalid Contract Configuration')
+      expect(result.retryable).toBe(false)
+    })
+
+    it('detects "address is not a contract"', () => {
+      const result = classifyRpcError(
+        new Error('address 0x... is not a contract')
+      )
+      expect(result.title).toBe('Invalid Contract Configuration')
+    })
   })
 
   describe('fallback', () => {

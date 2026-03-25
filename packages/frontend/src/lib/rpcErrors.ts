@@ -151,6 +151,20 @@ const ERROR_PATTERNS: ErrorPattern[] = [
 
   {
     test: (m) =>
+      /contract.*does not exist/i.test(m) ||
+      /address.*is not a contract/i.test(m),
+    parse: () => ({
+      title: 'Invalid Contract Configuration',
+      detail:
+        'The configured token or marketplace address does not exist on this network.',
+      suggestion:
+        'Check your environment variables for NEXT_PUBLIC_USDC_ADDRESS and NEXT_PUBLIC_MARKETPLACE_CONTRACT_ADDRESS.',
+      retryable: false,
+    }),
+  },
+
+  {
+    test: (m) =>
       /revert/i.test(m) ||
       /execution reverted/i.test(m) ||
       /VM Exception/i.test(m),
