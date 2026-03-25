@@ -4,6 +4,7 @@ import { AlertCircle, CheckCircle2, Download, Loader2 } from 'lucide-react'
 import { useState } from 'react'
 import { useAccount, useSignMessage } from 'wagmi'
 
+import { getCachedAuthHeader } from '@/lib/authCache'
 import { buildAuthHeader } from '@/lib/authHeader'
 import { loadBuyerPrivateKey } from '@/lib/buyerKeys'
 import { decryptAndDownload } from '@/lib/download'
@@ -11,8 +12,6 @@ import { decryptFile, sha256 } from '@/lib/encryption'
 import { validateEnvelope } from '@/lib/envelope'
 import type { EncryptionEnvelope } from '@/lib/envelope'
 import { fetchFromGateway } from '@/lib/gateway'
-
-import { getCachedAuthHeader } from '../lib/authCache'
 
 const API_URL = process.env['NEXT_PUBLIC_API_URL'] || 'http://localhost:3001'
 

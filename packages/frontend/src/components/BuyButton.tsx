@@ -6,12 +6,12 @@ import { waitForTransactionReceipt } from 'wagmi/actions'
 
 import { usePurchaseAccess } from '@/hooks/usePurchaseAccess'
 import { useUsdcApproval } from '@/hooks/useUsdcApproval'
+import { getCachedAuthHeader } from '@/lib/authCache'
 import { buildAuthHeader } from '@/lib/authHeader'
 import { getOrCreateBuyerKeypair } from '@/lib/buyerKeys'
 import { classifyRpcError, type ParsedRpcError } from '@/lib/rpcErrors'
 
 import { config } from '../config'
-import { getCachedAuthHeader } from '../lib/authCache'
 
 const API_URL = process.env['NEXT_PUBLIC_API_URL'] || 'http://localhost:3001'
 

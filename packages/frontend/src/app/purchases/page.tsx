@@ -14,9 +14,8 @@ import { useAccount, useSignMessage } from 'wagmi'
 
 import { DownloadAccess } from '@/components/DownloadAccess'
 import { BLOCK_EXPLORER_URL } from '@/config'
+import { getCachedAuthHeader } from '@/lib/authCache'
 import { buildAuthHeader } from '@/lib/authHeader'
-
-import { getCachedAuthHeader } from '../../lib/authCache'
 
 const API_URL = process.env['NEXT_PUBLIC_API_URL'] || 'http://localhost:3001'
 

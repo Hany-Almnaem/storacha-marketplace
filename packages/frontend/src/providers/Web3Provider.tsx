@@ -8,12 +8,12 @@ import {
 } from '@rainbow-me/rainbowkit'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { useTheme } from 'next-themes'
-import { useLayoutEffect, useRef, useState, useEffect } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useAccount, WagmiProvider, http } from 'wagmi'
 import { baseSepolia } from 'wagmi/chains'
 import '@rainbow-me/rainbowkit/styles.css'
 
-import { clearAuthCache } from '../lib/authCache'
+import { clearAuthCache } from '@/lib/authCache'
 
 const projectId = process.env['NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID'] ?? ''
 
@@ -32,7 +32,7 @@ function AuthCacheInvalidator() {
   const { address, isConnected } = useAccount()
   const prevAddressRef = useRef<string | undefined>(undefined)
 
-  useLayoutEffect(() => {
+  useEffect(() => {
     const previousAddress = prevAddressRef.current
 
     if (!isConnected || !address) {

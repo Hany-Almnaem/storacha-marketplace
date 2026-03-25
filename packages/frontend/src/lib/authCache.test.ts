@@ -139,6 +139,42 @@ describe('authCache', () => {
     expect(listing2).toBe(listing1)
   })
 
+  it('evicts cache when buildFn rejects so the next call retries', async () => {
+    const buildReject = vi.fn(() =>
+      Promise.reject(new Error('User rejected the request'))
+    )
+    const buildOk = vi.fn(async () => 'header-after-retry')
+    const address = '0xddd4444444444444444444444444444444444ddd'
+
+    await expect(
+      getCachedAuthHeader(address, 'general', buildReject)
+    ).rejects.toThrow('User rejected the request')
+    expect(buildReject).toHaveBeenCalledTimes(1)
+
+    const header = await getCachedAuthHeader(address, 'general', buildOk)
+    expect(buildOk).toHaveBeenCalledTimes(1)
+    expect(header).toBe('header-after-retry')
+  })
+
+  it('deduplicates concurrent calls: single buildFn, same resolved header', async () => {
+    let resolveHeader!: (value: string) => void
+    const deferred = new Promise<string>((resolve) => {
+      resolveHeader = resolve
+    })
+    const buildFn = vi.fn(() => deferred)
+    const address = '0xeee5555555555555555555555555555555555eee'
+
+    const first = getCachedAuthHeader(address, 'general', buildFn)
+    const second = getCachedAuthHeader(address, 'general', buildFn)
+
+    expect(buildFn).toHaveBeenCalledTimes(1)
+
+    resolveHeader('shared-header')
+    const [a, b] = await Promise.all([first, second])
+    expect(a).toBe('shared-header')
+    expect(b).toBe('shared-header')
+  })
+
   // Intentionally out of scope:
   // bind-key signatures are excluded from this cache by design.
 })
