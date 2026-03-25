@@ -16,7 +16,7 @@ vi.mock('../config/chain.js', () => ({
   },
   MARKETPLACE_ADDRESS: '0xmarketplace',
   MARKETPLACE_ABI: [],
-  CONFIRMATIONS_REQUIRED: 5,
+  CONFIRMATIONS_REQUIRED: 2,
 }))
 
 vi.mock('viem', async (importOriginal) => {
