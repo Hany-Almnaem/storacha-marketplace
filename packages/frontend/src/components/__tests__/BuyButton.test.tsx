@@ -33,7 +33,7 @@ describe('BuyButton component logic', () => {
       const handleBuyMatch = source.match(
         /const handleBuy = async \(\) => \{([\s\S]*?)\n {2}\}/
       )
-      const handleBuyBody = handleBuyMatch ? handleBuyMatch[1] : ''
+      const handleBuyBody = handleBuyMatch?.[1] ?? ''
 
       const approveIndex = handleBuyBody.indexOf('await approveIfNeeded()')
       const purchaseIndex = handleBuyBody.indexOf('await purchase(onchainId)')
