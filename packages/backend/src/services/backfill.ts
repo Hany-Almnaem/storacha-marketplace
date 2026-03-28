@@ -212,3 +212,114 @@ export async function backfillRange(
 
   return result
 }
+
+/** Rows in EventLog with processed=false (failed or never completed). */
+export async function findFailedEventLogsBlockRange(): Promise<{
+  count: number
+  fromBlock: bigint
+  toBlock: bigint
+} | null> {
+  const rows = await prismaDB.eventLog.findMany({
+    where: { processed: false },
+    select: { blockNumber: true },
+  })
+
+  if (rows.length === 0) {
+    return null
+  }
+
+  const blockNumbers = rows.map((r) => r.blockNumber)
+  const minBlock = Math.min(...blockNumbers)
+  const maxBlock = Math.max(...blockNumbers)
+
+  return {
+    count: rows.length,
+    fromBlock: BigInt(minBlock),
+    toBlock: BigInt(maxBlock),
+  }
+}
+
+/**
+ * Re-scan the chain for PurchaseCompleted logs in the block range covering
+ * all EventLog rows with processed=false.
+ */
+export async function retryFailedPurchaseBackfill(
+  dryRun: boolean
+): Promise<BackfillResult | 'empty'> {
+  const range = await findFailedEventLogsBlockRange()
+
+  if (!range) {
+    return 'empty'
+  }
+
+  console.log(
+    `[backfill] Found ${range.count} failed event(s) (processed=false). Derived block range: ${range.fromBlock} → ${range.toBlock}`
+  )
+
+  return backfillRange({
+    fromBlock: range.fromBlock,
+    toBlock: range.toBlock,
+    dryRun,
+  })
+}
+
+export type ParsedBackfillCli =
+  | {
+      kind: 'range'
+      from: bigint
+      to: bigint
+      dryRun: boolean
+    }
+  | { kind: 'retry-failed'; dryRun: boolean }
+  | { kind: 'error'; message: string; exitCode: number }
+
+/**
+ * Parse argv for scripts/backfill.ts (--from/--to range vs --retry-failed).
+ */
+export function parseBackfillCliArgs(argv: string[]): ParsedBackfillCli {
+  let from: bigint | null = null
+  let to: bigint | null = null
+  let dryRun = false
+  let retryFailed = false
+
+  for (let i = 0; i < argv.length; i++) {
+    const arg = argv[i]
+
+    if (arg === '--from' && argv[i + 1]) {
+      from = BigInt(argv[i + 1]!)
+      i++
+    } else if (arg === '--to' && argv[i + 1]) {
+      to = BigInt(argv[i + 1]!)
+      i++
+    } else if (arg === '--dry-run') {
+      dryRun = true
+    } else if (arg === '--retry-failed') {
+      retryFailed = true
+    }
+  }
+
+  if (retryFailed && (from !== null || to !== null)) {
+    return {
+      kind: 'error',
+      message:
+        'Error: --retry-failed cannot be used together with --from or --to. Use one mode or the other.',
+      exitCode: 1,
+    }
+  }
+
+  if (retryFailed) {
+    return { kind: 'retry-failed', dryRun }
+  }
+
+  if (from === null || to === null) {
+    return {
+      kind: 'error',
+      message:
+        'Usage: tsx scripts/backfill.ts --from <block> --to <block> [--dry-run]\n' +
+        '   or: tsx scripts/backfill.ts --retry-failed [--dry-run]',
+      exitCode: 1,
+    }
+  }
+
+  return { kind: 'range', from, to, dryRun }
+}
