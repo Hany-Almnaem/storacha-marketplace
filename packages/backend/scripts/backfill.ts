@@ -4,6 +4,8 @@
  * Usage:
  *   pnpm --filter @marketplace/backend backfill -- --from 1000 --to 2000
  *   pnpm --filter @marketplace/backend backfill -- --from 1000 --to 2000 --dry-run
+ *   pnpm --filter @marketplace/backend backfill -- --retry-failed
+ *   pnpm --filter @marketplace/backend backfill -- --retry-failed --dry-run
  *
  * Prerequisites:
  *   - DATABASE_URL configured in .env
@@ -24,53 +26,14 @@
 import 'dotenv/config'
 
 import { disconnectDatabase } from '../src/config/db.js'
-import { backfillRange } from '../src/services/backfill.js'
+import {
+  backfillRange,
+  parseBackfillCliArgs,
+  retryFailedPurchaseBackfill,
+  type BackfillResult,
+} from '../src/services/backfill.js'
 
-function parseArgs(argv: string[]): {
-  from: bigint
-  to: bigint
-  dryRun: boolean
-} {
-  let from: bigint | null = null
-  let to: bigint | null = null
-  let dryRun = false
-
-  for (let i = 0; i < argv.length; i++) {
-    const arg = argv[i]
-
-    if (arg === '--from' && argv[i + 1]) {
-      from = BigInt(argv[i + 1]!)
-      i++
-    } else if (arg === '--to' && argv[i + 1]) {
-      to = BigInt(argv[i + 1]!)
-      i++
-    } else if (arg === '--dry-run') {
-      dryRun = true
-    }
-  }
-
-  if (from === null || to === null) {
-    console.error(
-      'Usage: tsx scripts/backfill.ts --from <block> --to <block> [--dry-run]'
-    )
-    process.exit(1)
-  }
-
-  return { from, to, dryRun }
-}
-
-async function main() {
-  const { from, to, dryRun } = parseArgs(process.argv.slice(2))
-
-  console.log(`\n[backfill] Starting ${dryRun ? 'DRY-RUN' : 'LIVE'} backfill`)
-  console.log(`[backfill] Block range: ${from} → ${to}\n`)
-
-  const result = await backfillRange({
-    fromBlock: from,
-    toBlock: to,
-    dryRun,
-  })
-
+function printSummary(result: BackfillResult) {
   console.log('\n--- Backfill Summary ---')
   console.log(`  Mode:            ${result.dryRun ? 'DRY-RUN' : 'LIVE'}`)
   console.log(`  Block range:     ${result.fromBlock} → ${result.toBlock}`)
@@ -92,6 +55,46 @@ async function main() {
   }
 
   console.log('')
+}
+
+async function main() {
+  const parsed = parseBackfillCliArgs(process.argv.slice(2))
+
+  if (parsed.kind === 'error') {
+    console.error(parsed.message)
+    process.exit(parsed.exitCode)
+  }
+
+  if (parsed.kind === 'retry-failed') {
+    console.log(
+      `\n[backfill] Starting ${parsed.dryRun ? 'DRY-RUN' : 'LIVE'} retry of failed EventLog rows\n`
+    )
+
+    const outcome = await retryFailedPurchaseBackfill(parsed.dryRun)
+
+    if (outcome === 'empty') {
+      console.log(
+        '[backfill] No EventLog rows with processed=false. Nothing to retry.'
+      )
+      return
+    }
+
+    printSummary(outcome)
+    return
+  }
+
+  console.log(
+    `\n[backfill] Starting ${parsed.dryRun ? 'DRY-RUN' : 'LIVE'} backfill`
+  )
+  console.log(`[backfill] Block range: ${parsed.from} → ${parsed.to}\n`)
+
+  const result = await backfillRange({
+    fromBlock: parsed.from,
+    toBlock: parsed.to,
+    dryRun: parsed.dryRun,
+  })
+
+  printSummary(result)
 }
 
 main()
