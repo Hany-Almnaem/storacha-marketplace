@@ -275,15 +275,18 @@ describe('purchases API', () => {
       const bindCall = mockVerifyMessage.mock.calls[0]?.[0]
 
       expect(res.status).toBe(200)
+      expect(res.body.message).toBe('Public key bound successfully')
 
+      // DB write assertions
+      expect(updateArgs.where.id).toBe(PURCHASE_ID)
       expect(updateArgs.data.buyerPublicKey).toBe(PUBLIC_KEY)
+      expect(updateArgs.data.publicKeySignature).toBe(PUBLIC_KEY_SIGNATURE)
 
+      // signature verification message assertions
       expect(bindCall.message).toContain(
         `I am the buyer of purchase ${PURCHASE_ID}`
       )
-
       expect(bindCall.message).toContain(PUBLIC_KEY)
-
       expect(bindCall.message).toContain(`Timestamp: ${bindTimestamp}`)
     })
 
@@ -304,14 +307,15 @@ describe('purchases API', () => {
       expect(mockPurchaseUpdate).not.toHaveBeenCalled()
     })
 
-    it('binds key when signature is valid even if buyerAddress differs', async () => {
+    it('rejects wrong buyer', async () => {
       mockPurchaseFindUnique.mockResolvedValue({
         id: PURCHASE_ID,
         buyerAddress: OTHER_ADDRESS.toLowerCase(),
         buyerPublicKey: null,
       })
 
-      mockVerifyMessage.mockResolvedValueOnce(true)
+      // signer does NOT match purchase buyer
+      mockVerifyMessage.mockResolvedValueOnce(false)
 
       const res = await request(app)
         .post(`/api/purchases/${PURCHASE_ID}/bind-key`)
@@ -321,9 +325,11 @@ describe('purchases API', () => {
           timestamp: Date.now(),
         })
 
-      expect(res.status).toBe(200)
+      expect(res.status).toBe(401)
+      expect(res.body.error).toBe('Invalid signature')
 
-      expect(mockPurchaseUpdate).toHaveBeenCalled()
+      // critical security check
+      expect(mockPurchaseUpdate).not.toHaveBeenCalled()
     })
 
     it('rejects invalid payload', async () => {
@@ -361,6 +367,9 @@ describe('purchases API', () => {
 
       expect(res.status).toBe(401)
       expect(res.body.error).toBe('Invalid signature')
+
+      // ensure no DB write
+      expect(mockPurchaseUpdate).not.toHaveBeenCalled()
     })
 
     it('rejects future timestamp', async () => {
@@ -456,8 +465,14 @@ describe('purchases API', () => {
       const updateArgs = mockPurchaseUpdate.mock.calls[0]?.[0]
 
       expect(res.status).toBe(200)
+      expect(res.body.message).toBe('Key delivered successfully')
+
+      expect(updateArgs.where.id).toBe(PURCHASE_ID)
       expect(updateArgs.data.keyCid).toBe(VALID_KEY_CID)
       expect(updateArgs.data.keyDelivered).toBe(true)
+
+      // important persistence check
+      expect(updateArgs.data.keyDeliveredAt).toBeInstanceOf(Date)
     })
 
     it('returns 404 when purchase not found', async () => {
