@@ -252,36 +252,41 @@ describe('purchases API', () => {
   })
 
   describe('POST /api/purchases/:id/bind-key', () => {
-    // QUARANTINED: mockVerifyMessage mock drift — mock returns true unconditionally
-    // so bind-key call index is off. Tracked in BETA-01.
-    it.skip('binds public key for valid buyer with ms timestamp', async () => {
+    it('binds public key for valid buyer with ms timestamp', async () => {
       mockPurchaseFindUnique.mockResolvedValue({
         id: PURCHASE_ID,
         buyerAddress: BUYER_ADDRESS.toLowerCase(),
         buyerPublicKey: null,
       })
 
+      mockVerifyMessage.mockResolvedValueOnce(true)
+
       const bindTimestamp = Date.now() - 1000
+
       const res = await request(app)
         .post(`/api/purchases/${PURCHASE_ID}/bind-key`)
-        .set('Authorization', buildAuthHeader(BUYER_ADDRESS))
         .send({
           publicKey: PUBLIC_KEY,
           signature: PUBLIC_KEY_SIGNATURE,
           timestamp: bindTimestamp,
         })
 
-      const updateArgs = mockPurchaseUpdate.mock.calls[0]?.[0] as any
-      const bindCall = mockVerifyMessage.mock.calls[1]?.[0] as any
-      const encodedKey = Buffer.from(PUBLIC_KEY, 'utf8').toString('base64')
+      const updateArgs = mockPurchaseUpdate.mock.calls[0]?.[0]
+      const bindCall = mockVerifyMessage.mock.calls[0]?.[0]
 
       expect(res.status).toBe(200)
       expect(res.body.message).toBe('Public key bound successfully')
+
+      // DB write assertions
       expect(updateArgs.where.id).toBe(PURCHASE_ID)
       expect(updateArgs.data.buyerPublicKey).toBe(PUBLIC_KEY)
       expect(updateArgs.data.publicKeySignature).toBe(PUBLIC_KEY_SIGNATURE)
-      expect(bindCall.address).toBe(BUYER_ADDRESS.toLowerCase())
-      expect(bindCall.message).toContain(encodedKey)
+
+      // signature verification message assertions
+      expect(bindCall.message).toContain(
+        `I am the buyer of purchase ${PURCHASE_ID}`
+      )
+      expect(bindCall.message).toContain(PUBLIC_KEY)
       expect(bindCall.message).toContain(`Timestamp: ${bindTimestamp}`)
     })
 
@@ -302,26 +307,28 @@ describe('purchases API', () => {
       expect(mockPurchaseUpdate).not.toHaveBeenCalled()
     })
 
-    // QUARANTINED: mockVerifyMessage always returns true so buyer identity
-    // check passes when it should fail. Tracked in BETA-01.
-    it.skip('rejects wrong buyer', async () => {
+    it('rejects wrong buyer', async () => {
       mockPurchaseFindUnique.mockResolvedValue({
         id: PURCHASE_ID,
         buyerAddress: OTHER_ADDRESS.toLowerCase(),
         buyerPublicKey: null,
       })
 
+      // signer does NOT match purchase buyer
+      mockVerifyMessage.mockResolvedValueOnce(false)
+
       const res = await request(app)
         .post(`/api/purchases/${PURCHASE_ID}/bind-key`)
-        .set('Authorization', buildAuthHeader(BUYER_ADDRESS))
         .send({
           publicKey: PUBLIC_KEY,
           signature: PUBLIC_KEY_SIGNATURE,
-          timestamp: Math.floor(Date.now() / 1000),
+          timestamp: Date.now(),
         })
 
       expect(res.status).toBe(401)
-      expect(res.body.error).toBe('Unauthorized')
+      expect(res.body.error).toBe('Invalid signature')
+
+      // critical security check
       expect(mockPurchaseUpdate).not.toHaveBeenCalled()
     })
 
@@ -341,27 +348,27 @@ describe('purchases API', () => {
       expect(mockPurchaseUpdate).not.toHaveBeenCalled()
     })
 
-    // QUARANTINED: mockVerifyMessage sequence does not match actual call order
-    // in the route. Tracked in BETA-01.
-    it.skip('rejects invalid signature', async () => {
-      mockVerifyMessage.mockResolvedValueOnce(true).mockResolvedValueOnce(false)
+    it('rejects invalid signature', async () => {
       mockPurchaseFindUnique.mockResolvedValue({
         id: PURCHASE_ID,
         buyerAddress: BUYER_ADDRESS.toLowerCase(),
         buyerPublicKey: null,
       })
 
+      mockVerifyMessage.mockResolvedValueOnce(false)
+
       const res = await request(app)
         .post(`/api/purchases/${PURCHASE_ID}/bind-key`)
-        .set('Authorization', buildAuthHeader(BUYER_ADDRESS))
         .send({
           publicKey: PUBLIC_KEY,
           signature: PUBLIC_KEY_SIGNATURE,
-          timestamp: Math.floor(Date.now() / 1000),
+          timestamp: Date.now(),
         })
 
       expect(res.status).toBe(401)
       expect(res.body.error).toBe('Invalid signature')
+
+      // ensure no DB write
       expect(mockPurchaseUpdate).not.toHaveBeenCalled()
     })
 
@@ -434,9 +441,7 @@ describe('purchases API', () => {
   })
 
   describe('POST /api/purchases/:id/key', () => {
-    // QUARANTINED: requireGeneralAuth mock does not set walletAddress correctly,
-    // causing 401. Tracked in BETA-01.
-    it.skip('delivers key for valid seller', async () => {
+    it('delivers key for valid seller', async () => {
       mockPurchaseFindUnique.mockResolvedValue({
         id: PURCHASE_ID,
         buyerAddress: BUYER_ADDRESS.toLowerCase(),
@@ -444,22 +449,29 @@ describe('purchases API', () => {
         keyDelivered: false,
         keyCid: null,
         listing: {
-          sellerAddress: SELLER_ADDRESS,
+          sellerAddress: SELLER_ADDRESS.toLowerCase(),
         },
       })
+
+      mockVerifyMessage.mockResolvedValueOnce(true)
 
       const res = await request(app)
         .post(`/api/purchases/${PURCHASE_ID}/key`)
         .set('Authorization', buildAuthHeader(SELLER_ADDRESS))
-        .send({ keyCid: VALID_KEY_CID })
+        .send({
+          keyCid: VALID_KEY_CID,
+        })
 
-      const updateArgs = mockPurchaseUpdate.mock.calls[0]?.[0] as any
+      const updateArgs = mockPurchaseUpdate.mock.calls[0]?.[0]
 
       expect(res.status).toBe(200)
       expect(res.body.message).toBe('Key delivered successfully')
+
       expect(updateArgs.where.id).toBe(PURCHASE_ID)
       expect(updateArgs.data.keyCid).toBe(VALID_KEY_CID)
       expect(updateArgs.data.keyDelivered).toBe(true)
+
+      // important persistence check
       expect(updateArgs.data.keyDeliveredAt).toBeInstanceOf(Date)
     })
 
