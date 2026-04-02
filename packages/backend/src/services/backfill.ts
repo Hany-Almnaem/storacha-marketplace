@@ -1,11 +1,5 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
-import { decodeEventLog } from 'viem'
-
-import {
-  publicClient,
-  MARKETPLACE_ABI,
-  MARKETPLACE_ADDRESS,
-} from '../config/chain.js'
+import { publicClient, MARKETPLACE_ADDRESS } from '../config/chain.js'
 import prismaDB from '../config/db.js'
 
 import {
@@ -14,6 +8,7 @@ import {
   processLog,
   withRetry,
 } from './eventListener.js'
+import { parsePurchaseCompletedEvent } from './eventParsing.js'
 
 export interface BackfillOptions {
   fromBlock: bigint
@@ -61,13 +56,7 @@ async function inspectLog(log: any): Promise<{
     where: { txHash_logIndex: { txHash, logIndex } },
   })
 
-  const decoded = decodeEventLog({
-    abi: MARKETPLACE_ABI,
-    data: log.data,
-    topics: log.topics,
-  })
-
-  const { listingId, buyer, amountUsdc } = decoded.args as any
+  const { listingId, buyer, amountUsdc } = parsePurchaseCompletedEvent(log)
 
   return {
     txHash,
@@ -174,10 +163,14 @@ export async function backfillRange(
         const logIndex: number = log.logIndex
 
         try {
-          await processLog(log)
+          const status = await processLog(log)
 
           const info = await inspectLog(log)
-          result.eventsCreated++
+          if (status === 'created') {
+            result.eventsCreated++
+          } else {
+            result.eventsSkipped++
+          }
           result.events.push({
             txHash,
             logIndex,
@@ -185,7 +178,7 @@ export async function backfillRange(
             listingId: info.listingId,
             buyer: info.buyer,
             amountUsdc: info.amountUsdc,
-            status: 'created',
+            status,
           })
         } catch (error) {
           const message = error instanceof Error ? error.message : String(error)
@@ -220,7 +213,7 @@ export async function findFailedEventLogsBlockRange(): Promise<{
   toBlock: bigint
 } | null> {
   const rows = await prismaDB.eventLog.findMany({
-    where: { processed: false },
+    where: { processed: false, eventType: 'PurchaseCompleted' },
     select: { blockNumber: true },
   })
 
