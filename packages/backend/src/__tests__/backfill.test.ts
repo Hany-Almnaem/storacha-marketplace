@@ -162,8 +162,9 @@ describe('backfillRange', () => {
     const result = await backfillRange({ fromBlock: 1000n, toBlock: 1500n })
 
     expect(result.eventsFound).toBe(1)
-    expect(result.eventsCreated).toBe(1)
-    expect(result.eventsSkipped).toBe(0)
+    expect(result.eventsCreated).toBe(0)
+    expect(result.eventsSkipped).toBe(1)
+    expect(result.events[0]!.status).toBe('skipped')
     expect(txPurchaseUpsert).not.toHaveBeenCalled()
   })
 
@@ -289,6 +290,19 @@ describe('findFailedEventLogsBlockRange', () => {
       count: 3,
       fromBlock: 100n,
       toBlock: 250n,
+    })
+  })
+
+  it('queries only failed PurchaseCompleted event rows', async () => {
+    ;(prismaDB.eventLog.findMany as any).mockResolvedValue([
+      { blockNumber: 100 },
+    ])
+
+    await findFailedEventLogsBlockRange()
+
+    expect(prismaDB.eventLog.findMany).toHaveBeenCalledWith({
+      where: { processed: false, eventType: 'PurchaseCompleted' },
+      select: { blockNumber: true },
     })
   })
 })
