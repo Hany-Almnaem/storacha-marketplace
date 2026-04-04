@@ -28,6 +28,8 @@ export const PURCHASE_COMPLETED_EVENT = {
 
 let pollingInterval: NodeJS.Timeout | null = null
 let polling = false
+let lastPollTime = 0
+let lastSuccessfulPollTime = 0
 
 export function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms))
@@ -221,12 +223,15 @@ export async function pollOnce(): Promise<void> {
       for (const log of logs) {
         try {
           await processLog(log)
+          lastPollTime = Date.now()
+          lastSuccessfulPollTime = Date.now()
         } catch (error) {
           const message = error instanceof Error ? error.message : String(error)
           console.error(
             `[listener] Failed to process log tx=${log.transactionHash} logIndex=${log.logIndex} block=${log.blockNumber}: ${message}`
           )
           await recordFailedEvent(log, message)
+          lastPollTime = Date.now()
         }
       }
 
@@ -256,4 +261,12 @@ export function stopPurchaseListener() {
     clearInterval(pollingInterval)
     pollingInterval = null
   }
+}
+
+export function getLastPollTime() {
+  return lastPollTime
+}
+
+export function getLastSuccessfulPollTime() {
+  return lastSuccessfulPollTime
 }

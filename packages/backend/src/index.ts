@@ -11,6 +11,7 @@ import express, {
 } from 'express'
 import helmet from 'helmet'
 
+import { checkChainHealth } from './config/chain.js'
 import { checkDatabaseHealth, disconnectDatabase } from './config/db.js'
 import { VerifyPurchaseSchema } from './lib/validation.js'
 import listingsRouter from './routes/listings.js'
@@ -18,6 +19,8 @@ import purchasesRouter from './routes/purchases.js'
 import {
   startPurchaseListener,
   stopPurchaseListener,
+  getLastPollTime,
+  getLastSuccessfulPollTime,
 } from './services/eventListener.js'
 import { getListenerHealth } from './services/monitoring.js'
 import { verifyPurchase } from './services/txVerification'
@@ -46,12 +49,20 @@ app.use(urlencoded({ extended: true }))
 app.get('/health', async (_req, res) => {
   const dbHealthy = await checkDatabaseHealth()
   const listenerHealth = await getListenerHealth()
+  const blockNumber = await checkChainHealth()
+  const lastPollTime = getLastPollTime()
+  const lastSuccessfulPollTime = getLastSuccessfulPollTime()
 
   res.status(dbHealthy ? 200 : 503).json({
     status: dbHealthy ? 'ok' : 'degraded',
     services: {
+      rpc: blockNumber ? 'ok' : 'degraded',
       database: dbHealthy ? 'connected' : 'disconnected',
       listener: listenerHealth,
+    },
+    listener: {
+      lastPollTime,
+      lastSuccessfulPollTime,
     },
   })
 })
