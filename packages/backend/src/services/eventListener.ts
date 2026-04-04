@@ -1,14 +1,12 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
-import { decodeEventLog } from 'viem'
-
 import {
   publicClient,
-  MARKETPLACE_ABI,
   MARKETPLACE_ADDRESS,
   CONFIRMATIONS_REQUIRED,
 } from '../config/chain.js'
 import prismaDB from '../config/db.js'
 
+import { parsePurchaseCompletedEvent } from './eventParsing.js'
 import { notifySeller } from './notification.js'
 
 const POLL_INTERVAL_MS = 8_000
@@ -100,10 +98,10 @@ export async function recordFailedEvent(
   }
 }
 
-export async function processLog(log: any): Promise<void> {
+export async function processLog(log: any): Promise<'created' | 'skipped'> {
   if (log.blockNumber == null || !log.transactionHash || log.logIndex == null) {
     console.warn('[listener] Skipping log with missing fields')
-    return
+    return 'skipped'
   }
 
   const blockNumber = Number(log.blockNumber)
@@ -117,16 +115,11 @@ export async function processLog(log: any): Promise<void> {
   })
 
   if (alreadyProcessed?.processed) {
-    return
+    return 'skipped'
   }
 
-  const decoded = decodeEventLog({
-    abi: MARKETPLACE_ABI,
-    data: log.data,
-    topics: log.topics,
-  })
-
-  const { listingId, buyer, seller, amountUsdc } = decoded.args as any
+  const { listingId, buyer, seller, amountUsdc } =
+    parsePurchaseCompletedEvent(log)
 
   console.log(
     `[listener] Processing purchase: listing=${listingId}, block=${blockNumber}, tx=${txHash}`
@@ -171,6 +164,8 @@ export async function processLog(log: any): Promise<void> {
     seller,
     purchaseId: purchase.id,
   })
+
+  return 'created'
 }
 
 export async function pollOnce(): Promise<void> {

@@ -5,7 +5,12 @@ import type { MockedFunction } from 'vitest'
 
 import { publicClient } from '../config/chain.js'
 import prismaDB from '../config/db.js'
-import { backfillRange } from '../services/backfill.js'
+import {
+  backfillRange,
+  findFailedEventLogsBlockRange,
+  parseBackfillCliArgs,
+  retryFailedPurchaseBackfill,
+} from '../services/backfill.js'
 
 const txPurchaseUpsert = vi.fn()
 const txEventLogUpsert = vi.fn()
@@ -34,6 +39,7 @@ vi.mock('../config/db.js', () => ({
     eventLog: {
       findFirst: vi.fn(),
       findUnique: vi.fn(),
+      findMany: vi.fn(),
     },
     $transaction: vi.fn((fn: any) =>
       fn({
@@ -83,6 +89,7 @@ beforeEach(() => {
   mockGetLogs.mockResolvedValue([])
   ;(prismaDB.eventLog.findFirst as any).mockResolvedValue(null)
   ;(prismaDB.eventLog.findUnique as any).mockResolvedValue(null)
+  ;(prismaDB.eventLog.findMany as any).mockResolvedValue([])
   txListingFind.mockResolvedValue({ id: 'listing-id' })
   txPurchaseUpsert.mockResolvedValue({ id: 'purchase-id' })
   mockDecodeEventLog.mockReturnValue({
@@ -155,8 +162,9 @@ describe('backfillRange', () => {
     const result = await backfillRange({ fromBlock: 1000n, toBlock: 1500n })
 
     expect(result.eventsFound).toBe(1)
-    expect(result.eventsCreated).toBe(1)
-    expect(result.eventsSkipped).toBe(0)
+    expect(result.eventsCreated).toBe(0)
+    expect(result.eventsSkipped).toBe(1)
+    expect(result.events[0]!.status).toBe('skipped')
     expect(txPurchaseUpsert).not.toHaveBeenCalled()
   })
 
@@ -233,5 +241,130 @@ describe('backfillRange', () => {
       expect(result.events[0]!.listingId).toBe('42')
       expect(result.events[0]!.buyer).toBe('0xbuyerAddress')
     })
+  })
+})
+
+describe('parseBackfillCliArgs', () => {
+  it('rejects --retry-failed combined with --from', () => {
+    const r = parseBackfillCliArgs(['--retry-failed', '--from', '1'])
+    expect(r.kind).toBe('error')
+    if (r.kind === 'error') {
+      expect(r.exitCode).toBe(1)
+      expect(r.message).toContain('--retry-failed')
+      expect(r.message).toContain('--from')
+    }
+  })
+
+  it('rejects --retry-failed combined with --to', () => {
+    const r = parseBackfillCliArgs(['--retry-failed', '--to', '99'])
+    expect(r.kind).toBe('error')
+    if (r.kind === 'error') {
+      expect(r.exitCode).toBe(1)
+    }
+  })
+
+  it('accepts --retry-failed with --dry-run', () => {
+    const r = parseBackfillCliArgs(['--retry-failed', '--dry-run'])
+    expect(r).toEqual({ kind: 'retry-failed', dryRun: true })
+  })
+
+  it('accepts range mode with --from and --to', () => {
+    const r = parseBackfillCliArgs(['--from', '10', '--to', '20'])
+    expect(r).toEqual({ kind: 'range', from: 10n, to: 20n, dryRun: false })
+  })
+})
+
+describe('findFailedEventLogsBlockRange', () => {
+  it('returns null when no processed=false rows', async () => {
+    ;(prismaDB.eventLog.findMany as any).mockResolvedValue([])
+    await expect(findFailedEventLogsBlockRange()).resolves.toBeNull()
+  })
+
+  it('returns min/max block across failed rows', async () => {
+    ;(prismaDB.eventLog.findMany as any).mockResolvedValue([
+      { blockNumber: 100 },
+      { blockNumber: 250 },
+      { blockNumber: 175 },
+    ])
+    await expect(findFailedEventLogsBlockRange()).resolves.toEqual({
+      count: 3,
+      fromBlock: 100n,
+      toBlock: 250n,
+    })
+  })
+
+  it('queries only failed PurchaseCompleted event rows', async () => {
+    ;(prismaDB.eventLog.findMany as any).mockResolvedValue([
+      { blockNumber: 100 },
+    ])
+
+    await findFailedEventLogsBlockRange()
+
+    expect(prismaDB.eventLog.findMany).toHaveBeenCalledWith({
+      where: { processed: false, eventType: 'PurchaseCompleted' },
+      select: { blockNumber: true },
+    })
+  })
+})
+
+describe('retryFailedPurchaseBackfill', () => {
+  it('runs backfill over derived min/max blocks (100, 250, 175 → 100–250)', async () => {
+    ;(prismaDB.eventLog.findMany as any).mockResolvedValue([
+      { blockNumber: 100 },
+      { blockNumber: 250 },
+      { blockNumber: 175 },
+    ])
+    mockGetLogs.mockResolvedValue([])
+
+    const out = await retryFailedPurchaseBackfill(false)
+    expect(out).not.toBe('empty')
+    if (out !== 'empty') {
+      expect(out.fromBlock).toBe(100n)
+      expect(out.toBlock).toBe(250n)
+    }
+    expect(mockGetLogs).toHaveBeenCalledWith(
+      expect.objectContaining({
+        fromBlock: 100n,
+        toBlock: 250n,
+      })
+    )
+  })
+
+  it('does not scan chain when no failed events', async () => {
+    ;(prismaDB.eventLog.findMany as any).mockResolvedValue([])
+
+    const out = await retryFailedPurchaseBackfill(false)
+    expect(out).toBe('empty')
+    expect(mockGetLogs).not.toHaveBeenCalled()
+  })
+
+  it('retry dry-run uses same block window with dry-run scan (getLogs, no writes)', async () => {
+    ;(prismaDB.eventLog.findMany as any).mockResolvedValue([
+      { blockNumber: 100 },
+    ])
+    mockGetLogs.mockResolvedValue([])
+
+    await retryFailedPurchaseBackfill(true)
+    expect(mockGetLogs).toHaveBeenCalledWith(
+      expect.objectContaining({
+        fromBlock: 100n,
+        toBlock: 100n,
+      })
+    )
+  })
+
+  it('dry-run retry uses backfillRange with dryRun so there are no DB writes', async () => {
+    mockGetLogs.mockResolvedValue([makeMockLog()])
+    ;(prismaDB.eventLog.findMany as any).mockResolvedValue([
+      { blockNumber: 1500 },
+    ])
+
+    const out = await retryFailedPurchaseBackfill(true)
+    expect(out).not.toBe('empty')
+    if (out !== 'empty') {
+      expect(out.dryRun).toBe(true)
+    }
+    expect(txPurchaseUpsert).not.toHaveBeenCalled()
+    expect(txEventLogUpsert).not.toHaveBeenCalled()
   })
 })
