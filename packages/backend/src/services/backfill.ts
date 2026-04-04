@@ -1,6 +1,7 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { publicClient, MARKETPLACE_ADDRESS } from '../config/chain.js'
 import prismaDB from '../config/db.js'
+import { logger as baseLogger } from '../lib/logger.js'
 
 import {
   MAX_BLOCK_CHUNK,
@@ -9,6 +10,8 @@ import {
   withRetry,
 } from './eventListener.js'
 import { parsePurchaseCompletedEvent } from './eventParsing.js'
+
+const logger = baseLogger.child({ service: 'backfill' })
 
 export interface BackfillOptions {
   fromBlock: bigint
@@ -100,7 +103,7 @@ export async function backfillRange(
         ? chunkStart + MAX_BLOCK_CHUNK - 1n
         : toBlock
 
-    console.log(`[backfill] Scanning blocks ${chunkStart} → ${chunkEnd}`)
+    logger.info({ chunkStart, chunkEnd }, 'Scanning blocks for backfill')
 
     const logs = await withRetry(
       () =>
@@ -116,8 +119,9 @@ export async function backfillRange(
     result.blocksScanned += Number(chunkEnd - chunkStart + 1n)
 
     if (logs.length) {
-      console.log(
-        `[backfill] Found ${logs.length} PurchaseCompleted events in chunk`
+      logger.info(
+        { count: logs.length, chunkStart, chunkEnd },
+        'Found events in backfill chunk'
       )
     }
 
@@ -129,7 +133,7 @@ export async function backfillRange(
         !log.transactionHash ||
         log.logIndex == null
       ) {
-        console.warn('[backfill] Skipping log with missing fields')
+        logger.warn({ log }, 'Skipping log with missing fields')
         continue
       }
 
@@ -147,13 +151,20 @@ export async function backfillRange(
 
         if (info.alreadyProcessed) {
           result.eventsSkipped++
-          console.log(
-            `[backfill] [dry-run] SKIP (already indexed): tx=${info.txHash} logIndex=${info.logIndex}`
+          logger.info(
+            { txHash: info.txHash, logIndex: info.logIndex },
+            '[dry-run] SKIP (already indexed)'
           )
         } else {
           result.eventsCreated++
-          console.log(
-            `[backfill] [dry-run] WOULD CREATE: listing=${info.listingId} buyer=${info.buyer} amount=${info.amountUsdc} tx=${info.txHash}`
+          logger.info(
+            {
+              listingId: info.listingId,
+              buyer: info.buyer,
+              amount: info.amountUsdc,
+              txHash: info.txHash,
+            },
+            '[dry-run] WOULD CREATE'
           )
         }
 
