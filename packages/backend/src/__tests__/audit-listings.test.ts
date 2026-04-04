@@ -2,6 +2,7 @@ import { describe, it, expect, vi } from 'vitest'
 
 const mockReadContract = vi.fn()
 const mockFindMany = vi.fn()
+const mockWarn = vi.fn()
 
 vi.mock('@/config/chain', () => ({
   publicClient: {
@@ -16,6 +17,16 @@ vi.mock('@/config/db', () => ({
       findMany: mockFindMany,
     },
     $disconnect: vi.fn(),
+  },
+}))
+
+vi.mock('@/lib/logger', () => ({
+  logger: {
+    child: vi.fn().mockReturnValue({
+      info: vi.fn(),
+      warn: mockWarn,
+      error: vi.fn(),
+    }),
   },
 }))
 
@@ -43,10 +54,8 @@ describe('audit script', () => {
       0n,
     ])
 
-    const logSpy = vi.spyOn(console, 'log')
-
     await import('../scripts/audit-listings')
 
-    expect(logSpy).toHaveBeenCalledWith('PRICE_MISMATCH')
+    expect(mockWarn).toHaveBeenCalledWith(expect.anything(), 'PRICE_MISMATCH')
   })
 })
