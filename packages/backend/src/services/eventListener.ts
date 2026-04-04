@@ -5,9 +5,12 @@ import {
   CONFIRMATIONS_REQUIRED,
 } from '../config/chain.js'
 import prismaDB from '../config/db.js'
+import { logger as baseLogger } from '../lib/logger.js'
 
 import { parsePurchaseCompletedEvent } from './eventParsing.js'
 import { notifySeller } from './notification.js'
+
+const logger = baseLogger.child({ service: 'listener' })
 
 const POLL_INTERVAL_MS = 8_000
 export const MAX_BLOCK_CHUNK = 2_000n
@@ -47,15 +50,17 @@ export async function withRetry<T>(
       const message = error instanceof Error ? error.message : String(error)
 
       if (attempt === maxRetries) {
-        console.error(
-          `[listener] ${label} failed after ${maxRetries} attempts: ${message}`
+        logger.error(
+          { label, attempt, maxRetries, err: message },
+          `${label} failed after maximum attempts`
         )
         throw error
       }
 
       const delayMs = RPC_RETRY_BASE_MS * attempt
-      console.warn(
-        `[listener] ${label} attempt ${attempt}/${maxRetries} failed, retrying in ${delayMs}ms: ${message}`
+      logger.warn(
+        { label, attempt, maxRetries, delayMs, err: message },
+        `${label} attempt failed, retrying`
       )
       await sleep(delayMs)
     }
@@ -94,15 +99,16 @@ export async function recordFailedEvent(
       },
     })
   } catch (dbError) {
-    console.error(
-      `[listener] Failed to record event failure: ${dbError instanceof Error ? dbError.message : String(dbError)}`
+    logger.error(
+      { err: dbError, txHash: log.transactionHash, logIndex: log.logIndex },
+      'Failed to record event failure in database'
     )
   }
 }
 
 export async function processLog(log: any): Promise<'created' | 'skipped'> {
   if (log.blockNumber == null || !log.transactionHash || log.logIndex == null) {
-    console.warn('[listener] Skipping log with missing fields')
+    logger.warn({ log }, 'Skipping log with missing fields')
     return 'skipped'
   }
 
@@ -123,9 +129,8 @@ export async function processLog(log: any): Promise<'created' | 'skipped'> {
   const { listingId, buyer, seller, amountUsdc } =
     parsePurchaseCompletedEvent(log)
 
-  console.log(
-    `[listener] Processing purchase: listing=${listingId}, block=${blockNumber}, tx=${txHash}`
-  )
+  const logCtx = { listingId: listingId.toString(), blockNumber, txHash }
+  logger.info(logCtx, 'Processing purchase event')
 
   const purchase = await prismaDB.$transaction(async (tx: any) => {
     const listing = await tx.listing.findUnique({
@@ -201,7 +206,7 @@ export async function pollOnce(): Promise<void> {
           ? chunkStart + MAX_BLOCK_CHUNK - 1n
           : confirmedBlock
 
-      console.log(`[listener] Scanning blocks ${chunkStart} → ${chunkEnd}`)
+      logger.debug({ chunkStart, chunkEnd }, 'Scanning blocks')
 
       const logs = await withRetry(
         () =>
@@ -215,8 +220,9 @@ export async function pollOnce(): Promise<void> {
       )
 
       if (logs.length) {
-        console.log(
-          `[listener] Found ${logs.length} PurchaseCompleted events in chunk`
+        logger.info(
+          { count: logs.length, chunkStart, chunkEnd },
+          'Found events in block chunk'
         )
       }
 
@@ -226,11 +232,18 @@ export async function pollOnce(): Promise<void> {
           lastPollTime = Date.now()
           lastSuccessfulPollTime = Date.now()
         } catch (error) {
-          const message = error instanceof Error ? error.message : String(error)
-          console.error(
-            `[listener] Failed to process log tx=${log.transactionHash} logIndex=${log.logIndex} block=${log.blockNumber}: ${message}`
+          logger.error(
+            {
+              err: error,
+              txHash: log.transactionHash,
+              blockNumber: log.blockNumber,
+            },
+            'Failed to process log'
           )
-          await recordFailedEvent(log, message)
+          await recordFailedEvent(
+            log,
+            error instanceof Error ? error.message : String(error)
+          )
           lastPollTime = Date.now()
         }
       }
@@ -243,15 +256,15 @@ export async function pollOnce(): Promise<void> {
 }
 
 export function startPurchaseListener() {
-  console.log('[listener] Starting PurchaseCompleted polling listener')
+  logger.info('Starting PurchaseCompleted polling listener')
 
   pollOnce().catch((error) => {
-    console.error('[listener] Initial poll failed:', error)
+    logger.error({ err: error }, 'Initial poll failed')
   })
 
   pollingInterval = setInterval(() => {
     pollOnce().catch((error) => {
-      console.error('[listener] Poll error:', error)
+      logger.error({ err: error }, 'Poll iteration failed')
     })
   }, POLL_INTERVAL_MS)
 }

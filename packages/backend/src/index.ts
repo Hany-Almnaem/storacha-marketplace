@@ -13,7 +13,9 @@ import helmet from 'helmet'
 
 import { checkChainHealth } from './config/chain.js'
 import { checkDatabaseHealth, disconnectDatabase } from './config/db.js'
+import { logger } from './lib/logger.js'
 import { VerifyPurchaseSchema } from './lib/validation.js'
+import { httpLogger } from './middleware/logger.js'
 import listingsRouter from './routes/listings.js'
 import purchasesRouter from './routes/purchases.js'
 import {
@@ -42,6 +44,7 @@ app.use(
 )
 app.use(json({ limit: '10mb' }))
 app.use(urlencoded({ extended: true }))
+app.use(httpLogger)
 
 // --------------------
 // Health
@@ -117,8 +120,8 @@ app.use((_req: Request, res: Response) => {
 // --------------------
 // Error handler
 // --------------------
-app.use((err: Error, _req: Request, res: Response, _next: NextFunction) => {
-  console.error('Unhandled error:', err)
+app.use((err: Error, req: Request, res: Response, _next: NextFunction) => {
+  logger.error({ err, url: req.url, method: req.method }, 'Unhandled error')
   res.status(500).json({
     error: 'Internal server error',
     message:
@@ -130,14 +133,13 @@ let server: any
 
 if (!isTest) {
   server = app.listen(PORT, async () => {
-    console.log(`Server running on http://localhost:${PORT}`)
-    console.log(`Health check: http://localhost:${PORT}/health`)
+    logger.info({ port: PORT }, 'Server started')
 
     try {
       await startPurchaseListener()
-      console.log('[listener] PurchaseCompleted listener started')
+      logger.info('PurchaseCompleted listener started')
     } catch (err) {
-      console.error('[listener] Failed to start:', err)
+      logger.error({ err }, 'Failed to start listener')
     }
   })
 }
@@ -146,15 +148,15 @@ if (!isTest) {
 // Graceful shutdown
 // --------------------
 const shutdown = async (signal: string) => {
-  console.log(`${signal} received. Shutting down...`)
+  logger.info({ signal }, 'Shutdown signal received')
 
   try {
     if (stopPurchaseListener) {
       stopPurchaseListener()
-      console.log('[listener] Stopped')
+      logger.info('Listener stopped')
     }
   } catch (err) {
-    console.error('[listener] Failed to stop:', err)
+    logger.error({ err }, 'Failed to stop listener during shutdown')
   }
 
   server?.close(async () => {
