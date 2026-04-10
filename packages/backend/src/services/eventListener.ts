@@ -184,6 +184,7 @@ export async function pollOnce(): Promise<void> {
       () => publicClient.getBlockNumber(),
       'getBlockNumber'
     )
+    lastPollTime = Date.now()
     const confirmedBlock = latestBlock - BigInt(CONFIRMATIONS_REQUIRED)
 
     const lastEvent = await prismaDB.eventLog.findFirst({
@@ -196,7 +197,11 @@ export async function pollOnce(): Promise<void> {
       : confirmedBlock - OVERLAP_BLOCKS
     const fromBlock = rawFrom > 0n ? rawFrom : 0n
 
-    if (fromBlock > confirmedBlock) return
+    if (fromBlock > confirmedBlock) {
+      lastPollTime = Date.now()
+      lastSuccessfulPollTime = Date.now()
+      return
+    }
 
     let chunkStart = fromBlock
 
@@ -226,12 +231,12 @@ export async function pollOnce(): Promise<void> {
         )
       }
 
+      let chunkFailed = false
       for (const log of logs) {
         try {
           await processLog(log)
-          lastPollTime = Date.now()
-          lastSuccessfulPollTime = Date.now()
         } catch (error) {
+          chunkFailed = true
           logger.error(
             {
               err: error,
@@ -244,8 +249,12 @@ export async function pollOnce(): Promise<void> {
             log,
             error instanceof Error ? error.message : String(error)
           )
-          lastPollTime = Date.now()
         }
+      }
+
+      lastPollTime = Date.now()
+      if (!chunkFailed) {
+        lastSuccessfulPollTime = Date.now()
       }
 
       chunkStart = chunkEnd + 1n

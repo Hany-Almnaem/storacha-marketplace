@@ -14,6 +14,10 @@ vi.mock('../config/db.js', () => ({
   disconnectDatabase: vi.fn(),
 }))
 
+vi.mock('../config/chain.js', () => ({
+  checkChainHealth: vi.fn(),
+}))
+
 vi.mock('../services/txVerification.js', () => ({
   verifyPurchase: vi.fn(),
 }))
@@ -26,8 +30,10 @@ vi.mock('../services/monitoring.js', () => ({
   }),
 }))
 
+import { checkChainHealth } from '../config/chain.js'
 import { checkDatabaseHealth } from '../config/db.js'
 import app from '../index'
+import { getListenerHealth } from '../services/monitoring.js'
 import { verifyPurchase } from '../services/txVerification.js'
 
 describe('index.ts (Express API)', () => {
@@ -35,18 +41,51 @@ describe('index.ts (Express API)', () => {
     vi.clearAllMocks()
   })
 
-  it('GET /health → ok with listener health', async () => {
+  it('GET /health → ok when everything is fine', async () => {
     ;(checkDatabaseHealth as any).mockResolvedValue(true)
+    ;(checkChainHealth as any).mockResolvedValue(12345)
+    ;(getListenerHealth as any).mockResolvedValue({
+      healthy: true,
+      stale: false,
+      lastBlock: 100,
+    })
 
     const res = await request(app).get('/health')
 
     expect(res.status).toBe(200)
+    expect(res.body.status).toBe('ok')
     expect(res.body.services.database).toBe('connected')
-    expect(res.body.services.listener.healthy).toBe(true)
+    expect(res.body.services.rpc).toBe('ok')
   })
 
-  it('GET /health → degraded when DB down', async () => {
+  it('GET /health → 503 when DB down', async () => {
     ;(checkDatabaseHealth as any).mockResolvedValue(false)
+    ;(checkChainHealth as any).mockResolvedValue(12345)
+    ;(getListenerHealth as any).mockResolvedValue({ stale: false })
+
+    const res = await request(app).get('/health')
+
+    expect(res.status).toBe(503)
+    expect(res.body.status).toBe('degraded')
+    expect(res.body.services.database).toBe('disconnected')
+  })
+
+  it('GET /health → 503 when RPC down', async () => {
+    ;(checkDatabaseHealth as any).mockResolvedValue(true)
+    ;(checkChainHealth as any).mockResolvedValue(null)
+    ;(getListenerHealth as any).mockResolvedValue({ stale: false })
+
+    const res = await request(app).get('/health')
+
+    expect(res.status).toBe(503)
+    expect(res.body.status).toBe('degraded')
+    expect(res.body.services.rpc).toBe('degraded')
+  })
+
+  it('GET /health → 503 when Listener stale', async () => {
+    ;(checkDatabaseHealth as any).mockResolvedValue(true)
+    ;(checkChainHealth as any).mockResolvedValue(12345)
+    ;(getListenerHealth as any).mockResolvedValue({ stale: true })
 
     const res = await request(app).get('/health')
 

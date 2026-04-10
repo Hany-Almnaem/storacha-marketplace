@@ -56,10 +56,12 @@ app.get('/health', async (_req, res) => {
   const lastPollTime = getLastPollTime()
   const lastSuccessfulPollTime = getLastSuccessfulPollTime()
 
-  res.status(dbHealthy ? 200 : 503).json({
-    status: dbHealthy ? 'ok' : 'degraded',
+  const isHealthy = dbHealthy && blockNumber !== null && !listenerHealth.stale
+
+  res.status(isHealthy ? 200 : 503).json({
+    status: isHealthy ? 'ok' : 'degraded',
     services: {
-      rpc: blockNumber ? 'ok' : 'degraded',
+      rpc: blockNumber !== null ? 'ok' : 'degraded',
       database: dbHealthy ? 'connected' : 'disconnected',
       listener: listenerHealth,
     },

@@ -22,16 +22,16 @@ does not appear in the marketplace UI/API.
     block explorer (Base Sepolia).
 2.  **Run Backfill dry-run**:
     ```bash
-    npm run backfill -- --from <BLOCK_NUMBER> --to <BLOCK_NUMBER> --dry-run
+    pnpm --filter @marketplace/backend backfill -- --from <BLOCK_NUMBER> --to <BLOCK_NUMBER> --dry-run
     ```
 3.  **Execute Backfill**:
     ```bash
-    npm run backfill -- --from <BLOCK_NUMBER> --to <BLOCK_NUMBER>
+    pnpm --filter @marketplace/backend backfill -- --from <BLOCK_NUMBER> --to <BLOCK_NUMBER>
     ```
 4.  **Retry Failed Logs**: If the system recorded the event but failed to
     process it (e.g., due to DB transient error):
     ```bash
-    npm run backfill -- --retry-failed
+    pnpm --filter @marketplace/backend backfill -- --retry-failed
     ```
 
 ---
@@ -50,13 +50,13 @@ seller, CIDs) and the database.
 1.  **Run the Audit Script**:
     ```bash
     # From packages/backend
-    npx tsx src/scripts/audit-listings.ts
+    pnpm --filter @marketplace/backend exec tsx src/scripts/audit-listings.ts
     ```
 2.  **Analyze Output**: The script will mark each listing as `MATCH`, `MISMATCH`
     (with specific field), or `CHAIN_READ_FAILED`.
 3.  **Manual Investigation**: For any `MISMATCH`, manually verify the on-chain
     data and update the database if necessary via Prisma Studio
-    (`npm run db:studio`).
+    (`pnpm --filter @marketplace/backend db:studio`).
 
 ---
 

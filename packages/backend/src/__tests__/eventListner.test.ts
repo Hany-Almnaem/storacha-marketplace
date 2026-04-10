@@ -9,6 +9,9 @@ import {
   pollOnce,
   startPurchaseListener,
   stopPurchaseListener,
+  getLastPollTime,
+  getLastSuccessfulPollTime,
+  sleep,
 } from '../services/eventListener.js'
 import { notifySeller } from '../services/notification.js'
 
@@ -406,5 +409,50 @@ describe('eventListener polling', () => {
         where: { eventType: 'PurchaseCompleted' },
       })
     )
+  })
+
+  describe('health monitoring timestamps', () => {
+    it('updates timestamps on successful chunk with zero logs', async () => {
+      const prevSucc = getLastSuccessfulPollTime()
+      await sleep(5)
+      mockGetLogs.mockResolvedValue([])
+
+      await pollOnce()
+
+      expect(getLastPollTime()).toBeGreaterThan(prevSucc)
+      expect(getLastSuccessfulPollTime()).toBeGreaterThan(prevSucc)
+    })
+
+    it('updates timestamps on fast-forward (caught up)', async () => {
+      const prevSucc = getLastSuccessfulPollTime()
+      await sleep(5)
+      mockGetBlockNumber.mockResolvedValue(155n)
+      ;(prismaDB.eventLog.findFirst as any).mockResolvedValue({
+        blockNumber: 160,
+      })
+
+      await pollOnce()
+
+      expect(getLastPollTime()).toBeGreaterThan(prevSucc)
+      expect(getLastSuccessfulPollTime()).toBeGreaterThan(prevSucc)
+    })
+
+    it('does not update lastSuccessfulPollTime if chunk processing fails', async () => {
+      // Get baseline
+      mockGetLogs.mockResolvedValue([])
+      await pollOnce()
+
+      const prevSucc = getLastSuccessfulPollTime()
+      const prevPoll = getLastPollTime()
+      await sleep(5)
+
+      mockGetLogs.mockResolvedValue([makeMockLog()])
+      txListingFind.mockRejectedValueOnce(new Error('LISTING_NOT_FOUND'))
+
+      await pollOnce()
+
+      expect(getLastPollTime()).toBeGreaterThan(prevPoll)
+      expect(getLastSuccessfulPollTime()).toEqual(prevSucc)
+    })
   })
 })
