@@ -1,5 +1,8 @@
 import { publicClient, MARKETPLACE_ABI } from '@/config/chain'
 import { prisma } from '@/config/db'
+import { logger as baseLogger } from '@/lib/logger'
+
+const logger = baseLogger.child({ script: 'audit-listings' })
 
 type ChainListing = [
   `0x${string}`, // seller
@@ -14,7 +17,7 @@ type ChainListing = [
 async function audit() {
   const listings = await prisma.listing.findMany()
 
-  console.log(`Auditing ${listings.length} listings...\n`)
+  logger.info({ count: listings.length }, 'Starting audit of listings')
 
   for (const listing of listings) {
     try {
@@ -28,27 +31,47 @@ async function audit() {
       const [seller, dataCid, envelopeCid, envelopeHash, priceUsdc] =
         chainListing
 
-      console.log(`Listing ${listing.id}`)
+      const listingCtx = { listingId: listing.id, onchainId: listing.onchainId }
 
       let mismatch = false
 
       if (seller.toLowerCase() !== listing.sellerAddress.toLowerCase()) {
-        console.log('SELLER_MISMATCH')
+        logger.warn(
+          {
+            ...listingCtx,
+            chainSeller: seller,
+            dbSeller: listing.sellerAddress,
+          },
+          'SELLER_MISMATCH'
+        )
         mismatch = true
       }
 
       if (dataCid !== listing.dataCid) {
-        console.log('DATA_CID_MISMATCH')
+        logger.warn(
+          { ...listingCtx, chainCid: dataCid, dbCid: listing.dataCid },
+          'DATA_CID_MISMATCH'
+        )
         mismatch = true
       }
 
       if (envelopeCid !== listing.envelopeCid) {
-        console.log('ENVELOPE_CID_MISMATCH')
+        logger.warn(
+          { ...listingCtx, chainCid: envelopeCid, dbCid: listing.envelopeCid },
+          'ENVELOPE_CID_MISMATCH'
+        )
         mismatch = true
       }
 
       if (envelopeHash !== listing.envelopeHash) {
-        console.log('ENVELOPE_HASH_MISMATCH')
+        logger.warn(
+          {
+            ...listingCtx,
+            chainHash: envelopeHash,
+            dbHash: listing.envelopeHash,
+          },
+          'ENVELOPE_HASH_MISMATCH'
+        )
         mismatch = true
       }
 
@@ -56,19 +79,24 @@ async function audit() {
       const chainPrice = BigInt(priceUsdc)
 
       if (dbPrice !== chainPrice) {
-        console.log('PRICE_MISMATCH')
+        logger.warn(
+          {
+            ...listingCtx,
+            chainPrice: chainPrice.toString(),
+            dbPrice: dbPrice.toString(),
+          },
+          'PRICE_MISMATCH'
+        )
         mismatch = true
       }
 
       if (!mismatch) {
-        console.log('MATCH')
+        logger.info(listingCtx, 'MATCH')
       }
 
       console.log('')
-    } catch {
-      console.log(`Listing ${listing.id}`)
-      console.log('CHAIN_READ_FAILED')
-      console.log('')
+    } catch (err) {
+      logger.error({ err, listingId: listing.id }, 'CHAIN_READ_FAILED')
     }
   }
 
